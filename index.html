@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Моя книжка с кодами</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #eef2f6;
+      color: #17202a;
+    }
+
+    header {
+      padding: 32px 20px;
+      background: #1f2937;
+      color: white;
+      border-bottom: 6px solid #37b24d;
+    }
+
+    header h1 {
+      margin: 0 0 8px;
+      font-size: 34px;
+      letter-spacing: 0;
+    }
+
+    header p {
+      margin: 0;
+      max-width: 720px;
+      line-height: 1.5;
+      color: #dbe4ea;
+    }
+
+    main {
+      width: min(1000px, 100%);
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+
+    .book {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      min-height: 520px;
+      background: white;
+      border: 1px solid #d0d7de;
+      box-shadow: 0 18px 40px rgba(23, 32, 42, 0.14);
+    }
+
+    .cover {
+      padding: 24px;
+      background: #2f3a4a;
+      color: white;
+      border-right: 8px solid #37b24d;
+    }
+
+    .cover h2 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: 0;
+    }
+
+    .cover p {
+      margin: 14px 0 0;
+      color: #dbe4ea;
+      line-height: 1.45;
+    }
+
+    .page {
+      padding: 24px;
+    }
+
+    .code-card {
+      border: 1px solid #d0d7de;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #f8fafc;
+    }
+
+    .code-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 16px;
+      background: #ffffff;
+      border-bottom: 1px solid #d0d7de;
+      font-weight: bold;
+    }
+
+    .tag {
+      color: #0b7285;
+      font-weight: normal;
+    }
+
+    .copy-btn {
+      border: 0;
+      border-radius: 6px;
+      padding: 9px 12px;
+      background: #37b24d;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .copy-btn:active {
+      transform: translateY(1px);
+    }
+
+    pre {
+      margin: 0;
+      padding: 18px;
+      overflow-x: auto;
+      background: #101820;
+      color: #e9f5ff;
+      line-height: 1.45;
+      font-size: 14px;
+    }
+
+    code {
+      font-family: Consolas, Monaco, monospace;
+    }
+
+    .note {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-left: 5px solid #37b24d;
+      background: #ffffff;
+      line-height: 1.5;
+    }
+
+    .section {
+      margin-top: 24px;
+      padding: 22px;
+      background: white;
+      border: 1px solid #d0d7de;
+      border-radius: 8px;
+    }
+
+    .section h2 {
+      margin: 0 0 12px;
+      font-size: 24px;
+    }
+
+    .steps {
+      margin: 0;
+      padding-left: 20px;
+      line-height: 1.7;
+    }
+
+    .next-link {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 11px 14px;
+      border-radius: 6px;
+      background: #1f2937;
+      color: white;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    .snippet {
+      margin-top: 14px;
+      border: 1px solid #d0d7de;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .snippet-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      background: #f8fafc;
+      border-bottom: 1px solid #d0d7de;
+      font-weight: bold;
+    }
+
+    footer {
+      padding: 18px 16px 32px;
+      text-align: center;
+      color: #52616f;
+    }
+
+    @media (max-width: 720px) {
+      .book {
+        grid-template-columns: 1fr;
+      }
+
+      .cover {
+        border-right: 0;
+        border-bottom: 6px solid #37b24d;
+      }
+
+      header h1 {
+        font-size: 28px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Моя книжка с кодами</h1>
+    <p>Здесь я буду публиковать свои простые проекты на Python, pygame и другие маленькие программы.</p>
+  </header>
+
+  <main>
+    <section class="book">
+      <aside class="cover">
+        <h2>Code Book</h2>
+        <p>Место для моих учебных кодов и первых игр.</p>
+      </aside>
+
+      <div class="page">
+        <article class="code-card">
+          <div class="code-title">
+            <span>Простая игра на pygame для телефона</span>
+            <button class="copy-btn" data-copy="game-code">Копировать</button>
+          </div>
+<pre><code id="game-code">import pygame
+import random
+
+pygame.init()
+screen = pygame.display.set_mode((800, 600))
+clock = pygame.time.Clock()
+font = pygame.font.SysFont(None, 40)
+
+player = pygame.Rect(375, 470, 50, 50)
+bullet = None
+enemy = pygame.Rect(random.randint(0, 750), 60, 50, 50)
+score = 0
+
+left_btn = pygame.Rect(40, 520, 120, 60)
+right_btn = pygame.Rect(180, 520, 120, 60)
+shoot_btn = pygame.Rect(620, 520, 140, 60)
+
+while True:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            exit()
+
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+            bullet = pygame.Rect(player.x + 20, player.y, 10, 20)
+
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            x, y = event.pos
+            if shoot_btn.collidepoint(x, y):
+                bullet = pygame.Rect(player.x + 20, player.y, 10, 20)
+
+    keys = pygame.key.get_pressed()
+    mouse_pressed = pygame.mouse.get_pressed()[0]
+    mouse_pos = pygame.mouse.get_pos()
+    
+    if keys[pygame.K_a]:
+        player.x -= 5
+    if keys[pygame.K_d]:
+        player.x += 5
+
+    if mouse_pressed and left_btn.collidepoint(mouse_pos):
+        player.x -= 5
+    if mouse_pressed and right_btn.collidepoint(mouse_pos):
+        player.x += 5
+
+    if bullet:
+        bullet.y -= 8
+
+    if bullet and bullet.colliderect(enemy):
+        enemy.x = random.randint(0, 750)
+        enemy.y = random.randint(40, 220)
+        bullet = None
+        score += 1
+
+    if player.x &lt; 0:
+        player.x = 0
+    if player.x &gt; 750:
+        player.x = 750
+
+    screen.fill("black")
+    pygame.draw.rect(screen, "blue", player)
+    pygame.draw.rect(screen, "red", enemy)
+
+    if bullet:
+        pygame.draw.rect(screen, "yellow", bullet)
+
+    pygame.draw.rect(screen, "gray", left_btn)
+    pygame.draw.rect(screen, "gray", right_btn)
+    pygame.draw.rect(screen, "gray", shoot_btn)
+
+    screen.blit(font.render("&lt;", True, "white"), (85, 532))
+    screen.blit(font.render("&gt;", True, "white"), (225, 532))
+    screen.blit(font.render("FIRE", True, "white"), (655, 532))
+    screen.blit(font.render("Score: " + str(score), True, "white"), (20, 20))
+
+    pygame.display.update()
+    clock.tick(60)</code></pre>
+        </article>
+
+        <div class="note">
+          Управление на телефоне: нажимай кнопки &lt;, &gt; и FIRE на экране.
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Игра 2048 для Pydroid</h2>
+      <p>Полный код вынесен на отдельную страницу, чтобы ученику было удобно открыть и скопировать всю игру сразу.</p>
+      <a class="next-link" href="game-2048.html">Открыть полный код 2048</a>
+    </section>
+
+    <section class="section">
+      <h2>Пошаговая инструкция</h2>
+      <ol class="steps">
+        <li>Открыть Pydroid 3.</li>
+        <li>Установить pygame через Pip.</li>
+        <li>Создать файл `game_2048.py`.</li>
+        <li>Открыть страницу с полным кодом.</li>
+        <li>Нажать кнопку “Копировать”.</li>
+        <li>Вставить код в Pydroid.</li>
+        <li>Нажать запуск.</li>
+      </ol>
+    </section>
+
+    <section class="section">
+      <h2>Кусочки кода для урока</h2>
+
+      <div class="snippet">
+        <div class="snippet-title">
+          <span>1. Подключаем pygame</span>
+          <button class="copy-btn" data-copy="snippet-1">Копировать</button>
+        </div>
+<pre><code id="snippet-1">import pygame
+import random
+
+pygame.init()</code></pre>
+      </div>
+
+      <div class="snippet">
+        <div class="snippet-title">
+          <span>2. Создаем окно</span>
+          <button class="copy-btn" data-copy="snippet-2">Копировать</button>
+        </div>
+<pre><code id="snippet-2">screen = pygame.display.set_mode((500, 660))
+pygame.display.set_caption("2048")
+clock = pygame.time.Clock()</code></pre>
+      </div>
+
+      <div class="snippet">
+        <div class="snippet-title">
+          <span>3. Создаем поле</span>
+          <button class="copy-btn" data-copy="snippet-3">Копировать</button>
+        </div>
+<pre><code id="snippet-3">board = [
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+]</code></pre>
+      </div>
+
+      <div class="snippet">
+        <div class="snippet-title">
+          <span>4. Добавляем новую плитку</span>
+          <button class="copy-btn" data-copy="snippet-4">Копировать</button>
+        </div>
+<pre><code id="snippet-4">def add_tile():
+    empty = []
+
+    for y in range(4):
+        for x in range(4):
+            if board[y][x] == 0:
+                empty.append((x, y))
+
+    if empty:
+        x, y = random.choice(empty)
+        board[y][x] = 2</code></pre>
+      </div>
+
+      <div class="snippet">
+        <div class="snippet-title">
+          <span>5. Главный цикл</span>
+          <button class="copy-btn" data-copy="snippet-5">Копировать</button>
+        </div>
+<pre><code id="snippet-5">while True:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            exit()
+
+    pygame.display.update()
+    clock.tick(60)</code></pre>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Сделано для GitHub Pages
+  </footer>
+
+  <script>
+    document.querySelectorAll(".copy-btn").forEach(function (button) {
+      button.addEventListener("click", function () {
+        const code = document.getElementById(button.dataset.copy).innerText;
+
+        navigator.clipboard.writeText(code).then(function () {
+          button.innerText = "Скопировано";
+          setTimeout(function () {
+            button.innerText = "Копировать";
+          }, 1500);
+        });
+      });
+    });
+  </script>
+</body>
+</html>
