@@ -12,13 +12,41 @@ export const person = {
 
 // ЧЕРНОВИК: работ пока нет, поэтому здесь четыре придуманных концепта.
 // Обложки рисуются кодом в src/gl/covers.ts. Когда появятся настоящие проекты,
-// поменяй названия здесь и положи картинки в public/img (поле image).
-export type Work = { id: string; title: string; kind: string; year: string; image?: string }
+// поменяй названия и описания здесь и положи картинки в public/img (поле image).
+export type Work = { id: string; title: string; kind: string; year: string; text: string; role: string; image?: string }
 export const works: Work[] = [
-  { id: 'nord', title: 'Nord', kind: 'Интернет-магазин мебели', year: '2026' },
-  { id: 'pulse', title: 'Pulse', kind: 'Лендинг фитнес-приложения', year: '2026' },
-  { id: 'atlas', title: 'Atlas', kind: 'Сервис путешествий', year: '2025' },
-  { id: 'mono', title: 'Mono', kind: 'Портфолио фотографа', year: '2025' },
+  {
+    id: 'nord',
+    title: 'Nord',
+    kind: 'Интернет-магазин мебели',
+    year: '2026',
+    text: 'Каталог с фильтрами, кресло можно покрутить в 3D, корзина открывается без перезагрузки.',
+    role: 'Дизайн, разработка, анимация',
+  },
+  {
+    id: 'pulse',
+    title: 'Pulse',
+    kind: 'Лендинг фитнес-приложения',
+    year: '2026',
+    text: 'Графики пульса оживают при прокрутке, а тарифы сравниваются одним движением.',
+    role: 'Дизайн, разработка',
+  },
+  {
+    id: 'atlas',
+    title: 'Atlas',
+    kind: 'Сервис путешествий',
+    year: '2025',
+    text: 'Маршрут собирается на карте высот, которая рисуется линиями прямо в браузере.',
+    role: 'Разработка, 3D',
+  },
+  {
+    id: 'mono',
+    title: 'Mono',
+    kind: 'Портфолио фотографа',
+    year: '2025',
+    text: 'Чёрно-белые серии листаются как плёнка, снимки открываются на весь экран.',
+    role: 'Дизайн, разработка, анимация',
+  },
 ]
 export const worksNote = 'Концепт'
 
@@ -50,6 +78,15 @@ export const about = [
   },
 ]
 
+// ЧЕРНОВИК: текст над городом
+export const city = {
+  title: 'С кем работаю',
+  lines: [
+    'С теми, кому нужен сайт, который запоминают: стартапы, студии, личные бренды.',
+    'Большой проект или маленький, каждый собираю под его задачу и его людей.',
+  ],
+}
+
 // ЧЕРНОВИК: впиши настоящие контакты
 export const contact = {
   title: ['Давай', 'обсудим', 'твой проект'],
@@ -57,5 +94,14 @@ export const contact = {
   links: [
     { label: 'Telegram', value: '@username', href: 'https://t.me/username' },
     { label: 'Почта', value: 'you@example.com', href: 'mailto:you@example.com?subject=Проект' },
+    { label: 'GitHub', value: 'scroll94', href: 'https://github.com/scroll94' },
   ],
 }
+
+export const menu = [
+  { label: 'Главная', href: '#top' },
+  { label: 'Работы', href: '#works' },
+  { label: 'Обо мне', href: '#about' },
+  { label: 'С кем работаю', href: '#city' },
+  { label: 'Контакт', href: '#contact' },
+]

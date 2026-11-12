@@ -160,8 +160,11 @@ export function createPortrait(map: THREE.Texture, opts: Options): Portrait {
   return { points, uniforms }
 }
 
-/** Комната из линий, как на миллиметровке. Линза потом изгибает её. */
-export function createGridRoom(color: number) {
+/**
+ * Комната из линий, как на миллиметровке. Линза потом изгибает её.
+ * Если передать холст с буквой, сетка на задней стене дробится вдоль её контура.
+ */
+export function createGridRoom(color: number, mark?: { canvas: HTMLCanvasElement; width: number; height: number; y: number; distance: number }) {
   const x0 = -10
   const x1 = 10
   const y0 = -5.5
@@ -173,21 +176,53 @@ export function createGridRoom(color: number) {
   for (let z = z0; z <= z1; z++) pts.push(x0, y0, z, x1, y0, z, x0, y1, z, x1, y1, z, x0, y0, z, x0, y1, z, x1, y0, z, x1, y1, z)
   for (let y = y0; y <= y1; y++) pts.push(x0, y, z0, x0, y, z1, x1, y, z0, x1, y, z1, x0, y, z0, x1, y, z0)
 
-  const room = new THREE.LineSegments(
-    new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)),
-    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.3, fog: false }),
-  )
-
-  // мелкая сетка на задней стене, за головой
-  const fine: number[] = []
-  for (let x = -5; x <= 5.001; x += 0.25) fine.push(x, -3.5, z0 + 0.01, x, 3.5, z0 + 0.01)
-  for (let y = -3.5; y <= 3.501; y += 0.25) fine.push(-5, y, z0 + 0.01, 5, y, z0 + 0.01)
-  const detail = new THREE.LineSegments(
-    new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(fine, 3)),
-    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.1, fog: false }),
-  )
-
   const group = new THREE.Group()
-  group.add(room, detail)
+  group.add(
+    new THREE.LineSegments(
+      new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.3, fog: false }),
+    ),
+  )
+
+  if (mark) {
+    // буква проецируется на заднюю стену; клетки, через которые проходит её край, делятся на четыре
+    const { canvas } = mark
+    const data = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data
+    const k = (mark.distance - z0) / mark.distance
+    const w = mark.width * k
+    const h = mark.height * k
+    const cy = mark.y * k
+    const inside = (x: number, y: number) => {
+      const u = x / w + 0.5
+      const v = 0.5 - (y - cy) / h
+      if (u < 0 || u > 1 || v < 0 || v > 1) return false
+      const px = Math.min(canvas.width - 1, Math.floor(u * canvas.width))
+      const py = Math.min(canvas.height - 1, Math.floor(v * canvas.height))
+      return data[(py * canvas.width + px) * 4 + 3] > 128
+    }
+    const fine: number[] = []
+    const split = (x: number, y: number, size: number, depth: number) => {
+      let hits = 0
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) if (inside(x + ((i + 0.5) / 4) * size, y + ((j + 0.5) / 4) * size)) hits++
+      const edge = hits > 0 && hits < 16
+      if (edge && depth < 3) {
+        const half = size / 2
+        split(x, y, half, depth + 1)
+        split(x + half, y, half, depth + 1)
+        split(x, y + half, half, depth + 1)
+        split(x + half, y + half, half, depth + 1)
+      } else if (depth > 0) {
+        const z = z0 + 0.01
+        fine.push(x, y, z, x + size, y, z, x + size, y, z, x + size, y + size, z, x + size, y + size, z, x, y + size, z, x, y + size, z, x, y, z)
+      }
+    }
+    for (let x = -7; x < 7; x++) for (let y = -5; y < 5; y++) split(x, y, 1, 0)
+    group.add(
+      new THREE.LineSegments(
+        new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(fine, 3)),
+        new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.2, fog: false }),
+      ),
+    )
+  }
   return group
 }

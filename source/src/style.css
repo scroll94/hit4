@@ -516,3 +516,196 @@ body[data-theme='red'] .top__cta:hover {
     text-shadow: none;
   }
 }
+
+/* ── Проценты и помехи на экране загрузки ── */
+.loader__label {
+  animation: glitch 1.6s steps(1) infinite;
+}
+.loader__label b {
+  font-weight: inherit;
+  font-variant-numeric: tabular-nums;
+}
+@keyframes glitch {
+  0%,
+  100% {
+    text-shadow: none;
+    transform: none;
+  }
+  7% {
+    text-shadow:
+      2px 0 var(--red),
+      -2px 0 rgb(223 229 235 / 0.5);
+    transform: translateX(1px);
+  }
+  9% {
+    text-shadow: none;
+    transform: none;
+  }
+  52% {
+    text-shadow: -3px 0 var(--red);
+    transform: translateX(-2px) skewX(-8deg);
+  }
+  55% {
+    text-shadow: none;
+    transform: none;
+  }
+}
+
+/* ── Шапка: кнопка меню ── */
+.top {
+  z-index: 8;
+}
+.top__menu {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0 8px 4px;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+.top__menu i {
+  position: relative;
+  width: 18px;
+  height: 8px;
+}
+.top__menu i::before,
+.top__menu i::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: currentColor;
+  transition: transform 0.4s var(--ease);
+}
+.top__menu i::before {
+  top: 0;
+}
+.top__menu i::after {
+  bottom: 0;
+}
+body[data-menu='open'] .top__menu i::before {
+  transform: translateY(3.5px) rotate(18deg);
+}
+body[data-menu='open'] .top__menu i::after {
+  transform: translateY(-3.5px) rotate(-18deg);
+}
+body[data-menu='open'] {
+  --fg: var(--grey);
+  --accent: var(--red);
+}
+body[data-menu='open'] .top__cta:hover {
+  color: var(--black);
+}
+
+/* ── Меню на весь экран ── */
+.menu {
+  position: fixed;
+  inset: 0;
+  z-index: 7;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  padding: 96px var(--pad) var(--pad);
+  background: rgb(17 18 23 / 0.9);
+  color: var(--grey);
+  clip-path: inset(0 0 100% 0);
+}
+.menu__links {
+  align-self: center;
+  display: grid;
+  gap: clamp(2px, 0.6vh, 10px);
+  justify-items: start;
+}
+.menu__links a {
+  display: flex;
+  align-items: baseline;
+  gap: clamp(12px, 2vw, 28px);
+  font: 800 clamp(1.5rem, min(7.4vh, 8.2vw), 5.2rem) / 1.05 var(--display);
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  transition:
+    transform 0.5s var(--ease),
+    color 0.25s ease;
+}
+.menu__links a small {
+  width: 2.4em;
+  font: 400 12px/1 var(--mono);
+  letter-spacing: 0.08em;
+  opacity: 0.6;
+}
+.menu__links a:hover,
+.menu__links a:focus-visible {
+  transform: translateX(18px);
+  color: var(--red);
+}
+.menu__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+}
+.menu__social {
+  display: flex;
+  gap: clamp(16px, 3vw, 40px);
+}
+.menu__social a {
+  padding-bottom: 2px;
+  border-bottom: 1px solid currentColor;
+}
+.menu__foot p {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.menu__foot p i {
+  width: 8px;
+  height: 8px;
+  background: var(--red);
+}
+
+/* ── Город ── */
+.city {
+  height: 420vh;
+}
+
+/* ── Работы: описание и роль под названием ── */
+.works__list small b {
+  display: block;
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  opacity: 0.8;
+}
+.works__list small span {
+  display: block;
+  padding-top: 4px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.works__list small b {
+  text-transform: uppercase;
+}
+.works__list small i {
+  display: block;
+  margin-top: 6px;
+  font-style: normal;
+  opacity: 0.7;
+}
+@media (min-width: 821px) {
+  .works__side {
+    width: min(340px, 28vw);
+  }
+}
+
+/* меню плотнее, чтобы текст сцены под ним не мешал читать */
+.menu {
+  background: rgb(17 18 23 / 0.95);
+}
