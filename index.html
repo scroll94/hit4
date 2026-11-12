@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Marsel — веб-разработчик</title>
+    <meta name="description" content="Marsel, веб-разработчик. Делаю сайты с 16 лет: от идеи и дизайна до анимации, 3D и запуска." />
+    <meta name="theme-color" content="#111217" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Unbounded:wght@500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script type="module" crossorigin src="./assets/index-s-mIVLjk.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-xAjckqzZ.css">
+  </head>
+  <body data-theme="dark">
+    <canvas id="gl" aria-hidden="true"></canvas>
+
+    <div class="loader" id="loader" role="status">
+      <span class="loader__label">Загрузка</span>
+      <span class="loader__bar"><i></i></span>
+    </div>
+
+    <header class="top">
+      <a class="top__logo" href="#top">Marsel</a>
+      <nav class="top__nav" aria-label="Разделы">
+        <a href="#works">Работы</a>
+        <a href="#about">Обо мне</a>
+        <a class="top__cta" href="#contact">Написать</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="s hero" id="top">
+        <div class="pin hero__pin">
+          <div class="hero__name">
+            <h1 id="name">Marsel</h1>
+            <p class="label" id="tagline"></p>
+          </div>
+          <p class="hero__role label" id="role"></p>
+          <p class="hero__hint label">Листай вниз</p>
+          <p class="hero__status label"><i></i><span id="status"></span></p>
+        </div>
+      </section>
+
+      <section class="s works" id="works">
+        <div class="pin works__pin">
+          <div class="works__side">
+            <h2>Избранные работы</h2>
+            <ol class="works__list" id="works-list"></ol>
+          </div>
+          <p class="works__count label" id="works-count"></p>
+        </div>
+      </section>
+
+      <section class="s about" id="about">
+        <div class="pin about__pin">
+          <div class="about__panels" id="about-panels"></div>
+        </div>
+      </section>
+
+      <section class="s contact" id="contact">
+        <div class="pin contact__pin">
+          <div class="contact__body">
+            <h2 id="contact-title"></h2>
+            <p class="contact__note" id="contact-note"></p>
+            <ul class="contact__links" id="contact-links"></ul>
+          </div>
+          <footer class="contact__foot label">
+            <span>© 2026 Marsel</span>
+            <a href="#top">Наверх</a>
+          </footer>
+        </div>
+      </section>
+    </main>
+
+  </body>
+</html>
