@@ -187,16 +187,21 @@ export class Experience {
     if (inCity) {
       // ── над городом: камера смотрит вниз, поднимается от красной крыши и медленно поворачивается,
       // а в конце ныряет обратно в ту же крышу
-      const up = p.toContact > 0 ? 1 - Math.pow(p.toContact, 3) : 1 - Math.pow(1 - p.city, 3)
+      // к моменту сборки камера снижается, чтобы окно на крыше было видно крупнее
+      const settle = mix(1, 0.6, smooth(range(p.city, 0.72, 1)))
+      const up = (1 - Math.pow(1 - p.city, 3)) * settle * (1 - Math.pow(p.toContact, 3))
       const h = mix(CITY_NEAR, CITY_FAR, up)
       cam.position.set(
         CITY_AT.x - 10 * this.fit * up + this.look.x * 1.4,
         CITY_AT.y + this.city.roofY + h,
         CITY_AT.z + 4 * up + this.look.y * 1.4,
       )
-      cam.rotation.set(-Math.PI / 2, 0, 0.3 + p.city * 0.95 + p.toContact * 0.45)
+      // камера медленно поворачивается и к концу пике встаёт ровно по окну на крыше
+      cam.rotation.set(-Math.PI / 2, 0, this.city.angle - 1.25 + p.city * 0.95 + smooth(p.toContact) * 0.3)
       // здание разбирается на домики, пока камера набирает высоту, и собирается обратно перед пике
       this.city.setOpen(smooth(range(p.city, 0.1, 0.42)) * (1 - smooth(range(p.city, 0.7, 0.98))))
+      // картинка в окне появляется, пока плитки разлетелись, и растворяется в красном у самой крыши
+      this.city.setPicture(smooth(range(p.city, 0.42, 0.6)) * (1 - smooth(range(p.toContact, 0.74, 0.94))))
     } else {
       // ── первый экран, работы и тоннель
       let y = mix(0, worksTop, smooth(p.toWorks))
