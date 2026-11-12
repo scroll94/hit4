@@ -195,6 +195,8 @@ export class Experience {
         CITY_AT.z + 4 * up + this.look.y * 1.4,
       )
       cam.rotation.set(-Math.PI / 2, 0, 0.3 + p.city * 0.95 + p.toContact * 0.45)
+      // здание разбирается на домики, пока камера набирает высоту, и собирается обратно перед пике
+      this.city.setOpen(smooth(range(p.city, 0.1, 0.42)) * (1 - smooth(range(p.city, 0.7, 0.98))))
     } else {
       // ── первый экран, работы и тоннель
       let y = mix(0, worksTop, smooth(p.toWorks))
@@ -267,7 +269,7 @@ export class Experience {
     let barrel = mix(0.26, 0.5, smooth(range(p.toWorks, 0.2, 0.9)))
     barrel = mix(barrel, 0.3, smooth(p.toAbout))
     barrel = mix(barrel, 0.12, smooth(range(p.toCity, 0.6, 1)))
-    if (inCity) barrel = mix(mix(0.12, 0.34, smooth(range(p.city, 0, 0.5))), 0.12, smooth(range(p.toContact, 0.4, 1)))
+    if (inCity) barrel = mix(mix(0.12, 0.46, smooth(range(p.city, 0, 0.5))), 0.12, smooth(range(p.toContact, 0.4, 1)))
     u.uBarrel.value = barrel + this.glitch * 0.12
     // на сером и красном фоне зерно, виньетка и помехи слабее, чтобы цвет остался чистым
     let flat = Math.max(smooth(range(p.toWorks, 0.3, 0.8)) * (1 - smooth(range(p.toAbout, 0.1, 0.65))), range(p.toCity, 0.82, 1))
