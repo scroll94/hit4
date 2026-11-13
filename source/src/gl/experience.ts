@@ -8,7 +8,6 @@ import { createCity } from './city'
 import { createCover } from './covers'
 import { PostShader } from './post'
 import { createGridRoom, createPortrait, type Portrait } from './portrait'
-import { createRibbon } from './ribbon'
 import { createTunnel } from './tunnel'
 import { createDrift, createVoxelMark } from './voxel'
 
@@ -63,7 +62,6 @@ export class Experience {
   private planes: THREE.Mesh[] = []
   private tunnel: ReturnType<typeof createTunnel>
   private city: ReturnType<typeof createCity>
-  private ribbon: ReturnType<typeof createRibbon>
   private finale = new THREE.Group()
   private face: Portrait
   private mark: ReturnType<typeof createVoxelMark>
@@ -126,9 +124,6 @@ export class Experience {
     this.drift.mesh.visible = false
     this.camera.add(this.drift.mesh)
     this.camera.add(this.finale)
-    // лента пластин в тоннеле: тоже перед камерой, справа сверху
-    this.ribbon = createRibbon(PALETTE, FOV)
-    this.camera.add(this.ribbon.group)
     this.scene.add(this.camera)
 
     this.composer = new EffectComposer(this.renderer)
@@ -258,8 +253,6 @@ export class Experience {
     this.finale.visible = p.toContact > 0.9
     this.tunnel.lamp.position.set(cam.position.x, 1.4, z - 3)
 
-    const ribbonOn = inCity ? 0 : smooth(range(p.toAbout, 0.6, 1)) * (1 - smooth(range(p.toCity, 0.1, 0.55)))
-    this.ribbon.update(ribbonOn, time, cam.aspect, this.look.x, this.look.y, p.about)
 
     // ── монограмма на первом экране
     const face = this.face.uniforms
