@@ -9,6 +9,7 @@ import { createCover } from './covers'
 import { PostShader } from './post'
 import { createGridRoom, createPortrait, type Portrait } from './portrait'
 import { createTunnel } from './tunnel'
+import { createDrift, createVoxelMark } from './voxel'
 
 export const PALETTE = { black: 0x111217, grey: 0xdfe5eb, red: 0xef233c }
 
@@ -63,7 +64,9 @@ export class Experience {
   private city: ReturnType<typeof createCity>
   private finale = new THREE.Group()
   private face: Portrait
-  private ink: Portrait
+  private mark: ReturnType<typeof createVoxelMark>
+  private drift: ReturnType<typeof createDrift>
+  private pointerAt = -10
 
   private pointer = new THREE.Vector2()
   private look = new THREE.Vector2()
@@ -114,11 +117,12 @@ export class Experience {
     this.city.group.visible = false
     this.scene.add(this.city.group)
 
-    // финал: та же монограмма, но чёрным растром на красном; закреплена перед камерой
-    this.ink = createPortrait(mark, { cols: Math.round(cols * 0.6), width: 2.8, height: 2.128, halftone: true, dark: PALETTE.black })
-    this.ink.uniforms.uReveal.value = 1
-    this.ink.uniforms.uScatter.value = 1
-    this.finale.add(this.ink.points)
+    // финал: та же буква, но из кубиков; закреплена перед камерой вместе с плывущим фоном
+    this.mark = createVoxelMark(mark.image as HTMLCanvasElement, 3, PALETTE)
+    this.finale.add(this.mark.group)
+    this.drift = createDrift(PALETTE)
+    this.drift.mesh.visible = false
+    this.camera.add(this.drift.mesh)
     this.camera.add(this.finale)
     this.scene.add(this.camera)
 
@@ -130,6 +134,7 @@ export class Experience {
 
     window.addEventListener('pointermove', (e) => {
       this.pointer.set((e.clientX / window.innerWidth) * 2 - 1, (e.clientY / window.innerHeight) * 2 - 1)
+      this.pointerAt = performance.now() / 1000
     })
     this.resize()
   }
@@ -153,7 +158,6 @@ export class Experience {
     const buffer = this.renderer.getDrawingBufferSize(new THREE.Vector2())
     const scale = buffer.y / (2 * Math.tan((FOV * Math.PI) / 360))
     this.face.uniforms.uScale.value = scale
-    this.ink.uniforms.uScale.value = scale
     ;(this.post.uniforms.uRes.value as THREE.Vector2).copy(buffer)
 
     // на узком экране буква занимает около трёх четвертей ширины
@@ -199,9 +203,9 @@ export class Experience {
       // камера медленно поворачивается и к концу пике встаёт ровно по окну на крыше
       cam.rotation.set(-Math.PI / 2, 0, this.city.angle - 1.25 + p.city * 0.95 + smooth(p.toContact) * 0.3)
       // здание разбирается на домики, пока камера набирает высоту, и собирается обратно перед пике
-      this.city.setOpen(smooth(range(p.city, 0.1, 0.42)) * (1 - smooth(range(p.city, 0.7, 0.98))))
+      this.city.setOpen(smooth(range(p.city, 0.07, 0.5)) * (1 - smooth(range(p.city, 0.64, 0.98))))
       // картинка в окне появляется, пока плитки разлетелись, и растворяется в красном у самой крыши
-      this.city.setPicture(smooth(range(p.city, 0.42, 0.6)) * (1 - smooth(range(p.toContact, 0.74, 0.94))))
+      this.city.setPicture(smooth(range(p.city, 0.5, 0.62)) * (1 - smooth(range(p.toContact, 0.74, 0.94))))
     } else {
       // ── первый экран, работы и тоннель
       let y = mix(0, worksTop, smooth(p.toWorks))
@@ -257,10 +261,24 @@ export class Experience {
     const tilt = THREE.MathUtils.clamp(p.velocity * 0.22, -0.35, 0.35)
     for (const plane of this.planes) plane.rotation.x += (tilt - plane.rotation.x) * (1 - Math.exp(-dt * 6))
 
-    // ── финал: растровая монограмма собирается из разлетевшихся точек
-    const ink = this.ink.uniforms
-    ink.uTime.value = time
-    ink.uScatter.value = 1 - smooth(range(p.contact, 0.05, 0.75))
+    // ── финал: буква складывается из кубиков и расступается перед курсором
+    this.drift.mesh.visible = p.toContact > 0.9
+    if (this.finale.visible) {
+      const tan = Math.tan((FOV * Math.PI) / 360)
+      // линза сдвигает картинку к центру; переводим курсор в те же координаты, что и сцена
+      const k = this.post.uniforms.uBarrel.value as number
+      const bend = (1 + k * (this.pointer.x ** 2 + this.pointer.y ** 2) * 0.25) / (1 + k * 0.5)
+      const scale = this.finale.scale.x
+      let px = (this.pointer.x * bend * tan * cam.aspect * CAM_Z - this.finale.position.x) / scale
+      let py = (-this.pointer.y * bend * tan * CAM_Z - this.finale.position.y) / scale
+      // если курсора нет или он давно не двигался, по букве сама гуляет волна
+      if (performance.now() / 1000 - this.pointerAt > 2.5) {
+        px = Math.sin(time * 0.6) * 1.15
+        py = Math.sin(time * 0.93 + 1) * 0.7
+      }
+      this.mark.update(dt, smooth(range(p.contact, 0.02, 0.72)), this.reduced ? null : { x: px, y: py })
+      this.drift.update(time, this.look.x, this.look.y)
+    }
 
     // ── линза
     const speed = Math.min(1, Math.abs(p.velocity) / 2.2)

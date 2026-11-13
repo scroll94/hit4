@@ -60,6 +60,8 @@ $('#contact-links').innerHTML = contact.links
 $('#menu-links').innerHTML = menu.map((item, i) => `<a href="${item.href}"><small>${pad(i + 1)}</small><span>${item.label}</span></a>`).join('')
 $('#menu-social').innerHTML = contact.links.map((link) => `<li><a href="${link.href}">${link.label}</a></li>`).join('')
 $('#menu-status').textContent = person.status
+// бегущая строка в финале: одна фраза, повторённая столько раз, чтобы хватило на два экрана
+$('#ticker').innerHTML = Array.from({ length: 8 }, () => `<span>${person.status}</span><span>Напиши мне</span>`).join('')
 
 // ── Загрузка
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches

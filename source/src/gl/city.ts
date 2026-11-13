@@ -216,8 +216,10 @@ export function createCity(colors: { black: number; grey: number; red: number })
     .map((l) => ({ ...l, r: Math.hypot(l.x, l.z) }))
     .filter((l) => l.r > 9 && l.r < 52)
     .sort(() => rnd() - 0.5)
-  type Block = { hx: number; hy: number; hz: number; tx: number; ty: number; tz: number; size: number; arc: number; yaw: number; tumble: number; delay: number }
+  // Блок летит по спирали вокруг оси здания: угол растёт, радиус расходится от стены к крыше-цели.
+  type Block = { hr: number; ha: number; hy: number; tr: number; sweep: number; ty: number; size: number; arc: number; yaw: number; tumble: number; delay: number }
   const data: Block[] = []
+  const TAU = Math.PI * 2
   const cos = Math.cos(ANGLE)
   const sin = Math.sin(ANGLE)
   let n = 0
@@ -229,19 +231,26 @@ export function createCity(colors: { black: number; grey: number; red: number })
         const size = Math.min(spot.w * 0.42, 0.7 + rnd() * 0.6)
         const lx = (ix - (COLS - 1) / 2) * SIZE
         const lz = (iz - (ROWS - 1) / 2) * SIZE
+        const hx = lx * cos + lz * sin
+        const hz = -lx * sin + lz * cos
+        const tx = spot.x + corner * spot.w
+        const tz = spot.z + corner * spot.w
+        const ha = Math.atan2(hz, hx)
+        const around = (((ha % TAU) + TAU) % TAU) / TAU
         data.push({
-          hx: lx * cos + lz * sin,
+          hr: Math.hypot(hx, hz),
+          ha,
           hy: (ly + 0.5) * SIZE,
-          hz: -lx * sin + lz * cos,
-          tx: spot.x + corner * spot.w,
+          tr: Math.hypot(tx, tz),
+          // до своей крыши блок делает ещё один-два полных оборота, все в одну сторону
+          sweep: ((((Math.atan2(tz, tx) - ha) % TAU) + TAU) % TAU) + TAU * (1 + Math.floor(rnd() * 2)),
           ty: spot.y + size / 2,
-          tz: spot.z + corner * spot.w,
           size,
-          arc: 5 + rnd() * 9 + spot.r * 0.12,
-          yaw: Math.round(rnd() * 3) * (Math.PI / 2) + Math.PI * 2,
-          tumble: (rnd() - 0.5) * 2.4,
-          // верхние этажи улетают первыми и возвращаются последними
-          delay: (1 - ly / (LAYERS - 1)) * 0.5 + rnd() * 0.1,
+          arc: 4 + rnd() * 6 + spot.r * 0.1,
+          yaw: Math.round(rnd() * 3) * (Math.PI / 2) + TAU,
+          tumble: (rnd() - 0.5) * 1.4,
+          // здание раскручивается, как лента: сверху вниз и по кругу, блок за блоком
+          delay: ((LAYERS - 1 - ly + around) / LAYERS) * 0.56 + rnd() * 0.02,
         })
         if (ly === LAYERS - 1) {
           const t = ix * ROWS + iz
@@ -262,7 +271,10 @@ export function createCity(colors: { black: number; grey: number; red: number })
       let t = clamp01(open * 1.6 - b.delay)
       t = t * t * (3 - 2 * t)
       const up = Math.sin(Math.PI * t)
-      dummy.position.set(mix(b.hx, b.tx, t), mix(b.hy, b.ty, t) + up * b.arc, mix(b.hz, b.tz, t))
+      // сначала виток почти вплотную к зданию, потом спираль расходится
+      const angle = b.ha + b.sweep * t
+      const radius = mix(b.hr, b.tr, Math.pow(t, 1.7)) + up * 1.6
+      dummy.position.set(Math.cos(angle) * radius, mix(b.hy, b.ty, t) + up * b.arc, Math.sin(angle) * radius)
       dummy.rotation.set(up * b.tumble, mix(ANGLE, b.yaw, t), up * b.tumble * 0.6)
       dummy.scale.setScalar(mix(SIZE, b.size, t))
       dummy.updateMatrix()

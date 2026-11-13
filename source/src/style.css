@@ -709,3 +709,53 @@ body[data-menu='open'] .top__cta:hover {
 .menu {
   background: rgb(17 18 23 / 0.95);
 }
+
+/* ── Финал: бегущая строка контуром ── */
+.contact__pin {
+  grid-template-rows: 1fr auto auto;
+}
+.ticker {
+  margin: 0 calc(var(--pad) * -1) 14px;
+  overflow: hidden;
+}
+.ticker > div {
+  display: flex;
+  width: max-content;
+  animation: ticker 36s linear infinite;
+}
+.ticker span {
+  padding-right: 0.5em;
+  font: 800 clamp(2rem, 6vw, 5.4rem) / 1.1 var(--display);
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--black);
+}
+.ticker span:nth-child(even) {
+  color: var(--black);
+}
+@keyframes ticker {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.contact__links a::after {
+  content: '↗';
+  font-family: var(--mono);
+  font-weight: 400;
+  opacity: 0;
+  transform: translate(-8px, 6px);
+  transition:
+    opacity 0.25s ease,
+    transform 0.4s var(--ease);
+}
+.contact__links a:hover::after {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticker > div {
+    animation: none;
+  }
+}
