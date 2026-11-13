@@ -209,7 +209,7 @@ export class Experience {
       const opened = smooth(range(p.city, 0.5, 0.68))
       const blink = opened >= 1 && p.toContact < 0.2 ? Math.exp(-Math.pow(((time % 5.2) - 0.3) / 0.09, 2)) : 0
       const gaze = 1 - smooth(p.toContact)
-      this.city.update(smooth(range(p.city, 0.07, 0.5)), opened * (1 - 0.9 * blink), time, this.look.x * gaze, this.look.y * gaze)
+      this.city.update(smooth(range(p.city, 0.07, 0.5)), opened * (1 - 0.9 * blink), time, this.look.x * gaze, this.look.y * gaze, 1 - gaze)
     } else {
       // ── первый экран, работы и тоннель
       let y = mix(0, worksTop, smooth(p.toWorks))

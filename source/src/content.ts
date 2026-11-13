@@ -87,13 +87,12 @@ export const city = {
   ],
 }
 
-// ЧЕРНОВИК: впиши настоящие контакты
 export const contact = {
   title: ['Давай', 'обсудим', 'твой проект'],
   note: 'Напиши, отвечу в течение дня.',
   links: [
-    { label: 'Telegram', value: '@username', href: 'https://t.me/username' },
-    { label: 'Почта', value: 'you@example.com', href: 'mailto:you@example.com?subject=Проект' },
+    { label: 'Telegram', value: '@scroll96F1', href: 'https://t.me/scroll96F1' },
+    { label: 'WhatsApp', value: '+7 709 765 75 07', href: 'https://wa.me/77097657507' },
     { label: 'GitHub', value: 'scroll94', href: 'https://github.com/scroll94' },
   ],
 }

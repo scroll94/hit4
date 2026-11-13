@@ -768,3 +768,41 @@ body[data-menu='open'] .top__cta:hover {
 #city-panel p {
   text-shadow: none;
 }
+
+/* ── Появление текста: красная полоса проходит по строке и открывает её ── */
+.about__panel > * {
+  position: relative;
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.01s linear 0.3s;
+}
+.about__panel[data-on='true'] > * {
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 0.75s var(--ease);
+}
+.about__panel > *::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--red);
+  transform: translateX(-102%);
+  pointer-events: none;
+}
+.about__panel[data-on='true'] > *::after {
+  animation: sweep 0.85s var(--ease) both;
+}
+.about__panel[data-on='true'] > :nth-child(2),
+.about__panel[data-on='true'] > :nth-child(2)::after { transition-delay: 0.12s; animation-delay: 0.12s; }
+.about__panel[data-on='true'] > :nth-child(3),
+.about__panel[data-on='true'] > :nth-child(3)::after { transition-delay: 0.24s; animation-delay: 0.24s; }
+.about__panel[data-on='true'] > :nth-child(4),
+.about__panel[data-on='true'] > :nth-child(4)::after { transition-delay: 0.36s; animation-delay: 0.36s; }
+.about__panel[data-on='true'] > :nth-child(5),
+.about__panel[data-on='true'] > :nth-child(5)::after { transition-delay: 0.48s; animation-delay: 0.48s; }
+@keyframes sweep {
+  from { transform: translateX(-102%); }
+  to { transform: translateX(102%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .about__panel > * { clip-path: none; }
+  .about__panel > *::after { display: none; }
+}

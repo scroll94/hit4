@@ -133,6 +133,19 @@ export function createCity(colors: { black: number; grey: number; red: number })
   const pupil = new THREE.Mesh(new THREE.CircleGeometry(1.95, 56), new THREE.MeshBasicMaterial({ color: colors.red, fog: false }))
   pupil.rotation.x = -Math.PI / 2
   group.add(pupil)
+  // чёрная сердцевина зрачка и блик; перед входом в зрачок сердцевина исчезает
+  const core = new THREE.Mesh(new THREE.CircleGeometry(1.0, 40), new THREE.MeshBasicMaterial({ color: colors.black, fog: false }))
+  core.rotation.x = -Math.PI / 2
+  const glint = new THREE.Mesh(new THREE.CircleGeometry(0.3, 24), new THREE.MeshBasicMaterial({ color: colors.grey, fog: false }))
+  glint.rotation.x = -Math.PI / 2
+  group.add(core, glint)
+  // лучи радужки: тонкие планки от зрачка к краю, через одну красные и светлые
+  const RAYS = 44
+  const rays = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false }), RAYS)
+  rays.frustumCulled = false
+  for (let i = 0; i < RAYS; i++) rays.setColorAt(i, new THREE.Color(i % 2 ? colors.red : colors.grey))
+  group.add(rays)
+  const cDark = new THREE.Color(0x4d0b16)
 
   // ── из чего состоит глаз
   // контуры век: параболические дуги, каждая следующая больше и ниже — расходятся, как круги по воде
@@ -191,7 +204,9 @@ export function createCity(colors: { black: number; grey: number; red: number })
       // внутренние контуры открываются раньше внешних, потом все слегка «дышат»
       const open = smooth(clamp01(lid * 1.35 - spot.ring * 0.08))
       const pulse = 1 + 0.035 * Math.sin(time * 1.25 - spot.ring * 0.85)
-      out.set(spot.s * a * pulse, EYE_Y - spot.ring * 0.55, -spot.side * b * open * pulse * (1 - spot.s * spot.s))
+      // по контурам бежит волна по высоте: глаз выглядит объёмным и живым
+      const wave = Math.sin(time * 1.6 - spot.ring * 0.9 + spot.s * 1.5) * 0.45 * open
+      out.set(spot.s * a * pulse, EYE_Y - spot.ring * 0.55 + wave, -spot.side * b * open * pulse * (1 - spot.s * spot.s))
     }
   }
 
@@ -239,7 +254,7 @@ export function createCity(colors: { black: number; grey: number; red: number })
    * @param lid 0 — глаз закрыт, 1 — открыт
    * @param look куда смотрит глаз: смещение радужки, примерно от -1 до 1
    */
-  const update = (open: number, lid: number, time: number, lookX: number, lookY: number) => {
+  const update = (open: number, lid: number, time: number, lookX: number, lookY: number, dive = 0) => {
     // радужка не выходит за край век
     const gx = lookX * 2.6 * lid
     const gz = lookY * 1.3 * lid
@@ -258,11 +273,14 @@ export function createCity(colors: { black: number; grey: number; red: number })
         Math.sin(angle) * radius + (now.z - b.bz) * t,
       )
       dummy.rotation.set(up * b.tumble, mix(ANGLE, 0, t) + up * 2.2, up * b.tumble * 0.6)
-      dummy.scale.setScalar(mix(SIZE, b.spot.kind === 'iris' ? 0.78 : 0.92, t))
+      dummy.scale.setScalar(mix(SIZE, b.spot.kind === 'iris' ? 0.78 : 0.98 - b.spot.ring * 0.07, t))
       dummy.updateMatrix()
       blocks.setMatrixAt(i, dummy.matrix)
       const grey = b.spot.kind === 'iris' && iris[b.spot.ring].grey
-      blocks.setColorAt(i, grey ? tint.copy(cRed).lerp(cGrey, t) : cRed)
+      // внешние контуры темнее внутренних: взгляд собирается к центру
+      if (grey) blocks.setColorAt(i, tint.copy(cRed).lerp(cGrey, t))
+      else if (b.spot.kind === 'lid') blocks.setColorAt(i, tint.copy(cRed).lerp(cDark, t * Math.min(0.8, b.spot.ring * 0.17)))
+      else blocks.setColorAt(i, cRed)
     }
     dummy.rotation.set(0, 0, 0)
     blocks.instanceMatrix.needsUpdate = true
@@ -271,6 +289,22 @@ export function createCity(colors: { black: number; grey: number; red: number })
     const grow = smooth(clamp01(lid * 1.4)) * smooth(clamp01(open * 1.6 - 0.56))
     pupil.position.set(gx, PUPIL_Y, gz)
     pupil.scale.setScalar(Math.max(grow, 0.0001))
+    core.position.set(gx, PUPIL_Y + 0.02, gz)
+    core.scale.setScalar(Math.max(grow * (1 - dive), 0.0001))
+    glint.position.set(gx - 0.95, PUPIL_Y + 0.04, gz - 0.95)
+    glint.scale.setScalar(Math.max(grow * (1 - dive), 0.0001))
+    for (let i = 0; i < RAYS; i++) {
+      const angle = (i / RAYS) * TAU + time * 0.12
+      const len = (i % 2 ? 2.5 : 1.7) * grow
+      const r = 2.15 + len / 2
+      dummy.position.set(gx + Math.cos(angle) * r, EYE_Y + 0.35, gz + Math.sin(angle) * r)
+      dummy.rotation.set(0, -angle, 0)
+      dummy.scale.set(Math.max(len, 0.0001), 0.08, 0.09)
+      dummy.updateMatrix()
+      rays.setMatrixAt(i, dummy.matrix)
+    }
+    dummy.rotation.set(0, 0, 0)
+    rays.instanceMatrix.needsUpdate = true
   }
   update(0, 0, 0, 0, 0)
 

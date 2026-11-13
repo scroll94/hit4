@@ -24,6 +24,15 @@ function scramble(el: HTMLElement, text: string, duration = 0.7, pool = 'АБВ�
   requestAnimationFrame(step)
 }
 
+/** Строки блока по очереди «расшифровываются» из случайных символов. */
+function decode(panel: HTMLElement) {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  ;([...panel.children] as HTMLElement[]).forEach((el, i) => {
+    const text = (el.dataset.text ??= el.textContent ?? '')
+    window.setTimeout(() => scramble(el, text, 0.45 + text.length * 0.006), i * 120)
+  })
+}
+
 // ── Текст из content.ts
 $('#tagline').textContent = person.tagline
 $('#role').textContent = person.role
@@ -223,10 +232,14 @@ async function boot() {
     if (an !== aboutIndex) {
       aboutIndex = an
       aboutPanels.forEach((panel, i) => (panel.dataset.on = String(i === an)))
+      if (an >= 0) decode(aboutPanels[an])
     }
 
     const cn = progress.city > 0.3 && progress.toContact < 0.2
-    if (cn !== cityOn) cityPanel.dataset.on = String((cityOn = cn))
+    if (cn !== cityOn) {
+      cityPanel.dataset.on = String((cityOn = cn))
+      if (cn) decode(cityPanel)
+    }
   })
   gsap.ticker.lagSmoothing(0)
 
