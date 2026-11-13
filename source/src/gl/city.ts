@@ -129,22 +129,6 @@ export function createCity(colors: { black: number; grey: number; red: number })
   const cGrey = new THREE.Color(colors.grey)
   const tint = new THREE.Color()
 
-  // зрачок: гладкий красный диск, в него ныряет камера
-  const pupil = new THREE.Mesh(new THREE.CircleGeometry(1.95, 56), new THREE.MeshBasicMaterial({ color: colors.red, fog: false }))
-  pupil.rotation.x = -Math.PI / 2
-  group.add(pupil)
-  // чёрная сердцевина зрачка и блик; перед входом в зрачок сердцевина исчезает
-  const core = new THREE.Mesh(new THREE.CircleGeometry(1.0, 40), new THREE.MeshBasicMaterial({ color: colors.black, fog: false }))
-  core.rotation.x = -Math.PI / 2
-  const glint = new THREE.Mesh(new THREE.CircleGeometry(0.3, 24), new THREE.MeshBasicMaterial({ color: colors.grey, fog: false }))
-  glint.rotation.x = -Math.PI / 2
-  group.add(core, glint)
-  // лучи радужки: тонкие планки от зрачка к краю, через одну красные и светлые
-  const RAYS = 44
-  const rays = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false }), RAYS)
-  rays.frustumCulled = false
-  for (let i = 0; i < RAYS; i++) rays.setColorAt(i, new THREE.Color(i % 2 ? colors.red : colors.grey))
-  group.add(rays)
   const cDark = new THREE.Color(0x4d0b16)
 
   // ── из чего состоит глаз
@@ -248,19 +232,166 @@ export function createCity(colors: { black: number; grey: number; red: number })
         })
       }
 
+  // ── гладкий глаз: блоки долетают до своих мест и растворяются в линиях
+  const range = (v: number, a: number, b: number) => clamp01((v - a) / (b - a))
+  const ringCount = spotsList.reduce((m, sp) => (sp.kind === 'lid' ? Math.max(m, sp.ring + 1) : m), 0)
+  // когда прилетает первый и последний блок каждого контура и радужки
+  const lidFrom = new Array(ringCount).fill(9)
+  const lidTo = new Array(ringCount).fill(0)
+  let irisFrom = 9
+  let irisTo = 0
+  for (const b of data) {
+    if (b.spot.kind === 'lid') {
+      lidFrom[b.spot.ring] = Math.min(lidFrom[b.spot.ring], b.delay)
+      lidTo[b.spot.ring] = Math.max(lidTo[b.spot.ring], b.delay)
+    } else {
+      irisFrom = Math.min(irisFrom, b.delay)
+      irisTo = Math.max(irisTo, b.delay)
+    }
+  }
+
+  // контуры век: ленты с мягким краем, сужаются к уголкам глаза
+  const M = 96
+  const strips = ringCount * 2
+  const per = (M + 1) * 2
+  const ribPos = new Float32Array(strips * per * 3)
+  const ribUv = new Float32Array(strips * per * 2)
+  const ribTint = new Float32Array(strips * per * 3)
+  const ribIndex: number[] = []
+  // внешние контуры рисуются первыми и темнее внутренних
+  const stripRing = (st: number) => ringCount - 1 - (st >> 1)
+  for (let st = 0; st < strips; st++) {
+    const k = stripRing(st)
+    tint.copy(cRed).lerp(cDark, Math.min(0.8, k * 0.19))
+    for (let i = 0; i <= M; i++)
+      for (let e = 0; e < 2; e++) {
+        const v = st * per + i * 2 + e
+        ribUv.set([i / M, e], v * 2)
+        ribTint.set([tint.r, tint.g, tint.b], v * 3)
+      }
+    for (let i = 0; i < M; i++) {
+      const v = st * per + i * 2
+      ribIndex.push(v, v + 1, v + 2, v + 1, v + 3, v + 2)
+    }
+  }
+  const ribGeo = new THREE.BufferGeometry()
+  const ribAttr = new THREE.BufferAttribute(ribPos, 3)
+  ribAttr.setUsage(THREE.DynamicDrawUsage)
+  ribGeo.setAttribute('position', ribAttr)
+  ribGeo.setAttribute('uv', new THREE.BufferAttribute(ribUv, 2))
+  ribGeo.setAttribute('tint', new THREE.BufferAttribute(ribTint, 3))
+  ribGeo.setIndex(ribIndex)
+  const lids = new THREE.Mesh(
+    ribGeo,
+    new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      vertexShader: /* glsl */ `
+        attribute vec3 tint;
+        varying vec2 vUv;
+        varying vec3 vTint;
+        void main() {
+          vUv = uv;
+          vTint = tint;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: /* glsl */ `
+        varying vec2 vUv;
+        varying vec3 vTint;
+        void main() {
+          float edge = min(vUv.y, 1.0 - vUv.y);
+          float alpha = smoothstep(0.0, fwidth(vUv.y) * 1.5, edge);
+          float s = vUv.x * 2.0 - 1.0;
+          gl_FragColor = vec4(vTint * mix(0.45, 1.0, 1.0 - s * s), alpha);
+        }`,
+    }),
+  )
+  lids.frustumCulled = false
+  lids.renderOrder = 2
+  group.add(lids)
+
+  // радужка, зрачок и блик — один гладкий круг; веки обрезают его сверху и снизу
+  const IRIS_R = 5.5
+  const eyeUniforms = {
+    uTime: { value: 0 },
+    uPupil: { value: 0.36 },
+    uDive: { value: 0 },
+    uCenter: { value: new THREE.Vector2() },
+    uRadius: { value: 1 },
+    uLid: { value: new THREE.Vector2(10, 0) },
+    uRed: { value: new THREE.Color(colors.red) },
+    uGrey: { value: new THREE.Color(colors.grey) },
+    uBlack: { value: new THREE.Color(colors.black) },
+    uDark: { value: cDark },
+  }
+  const eye = new THREE.Mesh(
+    new THREE.PlaneGeometry(2, 2),
+    new THREE.ShaderMaterial({
+      uniforms: eyeUniforms,
+      transparent: true,
+      depthWrite: false,
+      vertexShader: /* glsl */ `
+        varying vec2 vP;
+        void main() {
+          vP = position.xy;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: /* glsl */ `
+        uniform float uTime, uPupil, uDive, uRadius;
+        uniform vec2 uCenter, uLid;
+        uniform vec3 uRed, uGrey, uBlack, uDark;
+        varying vec2 vP;
+        void main() {
+          float r = length(vP);
+          float ang = atan(vP.y, vP.x);
+          float aa = fwidth(r) * 1.2;
+          // радужка: от красного у зрачка к тёмному краю, по ней идут светлые волокна
+          vec3 col = mix(uRed, uDark, smoothstep(uPupil, 0.95, r));
+          float fibre = sin(ang * 46.0 + sin(ang * 9.0 + uTime * 0.25) * 2.2 + r * 6.0 - uTime * 0.4);
+          float soft = sin(ang * 17.0 - uTime * 0.18 + r * 3.0) * 0.5 + 0.5;
+          float band = smoothstep(uPupil + 0.02, uPupil + 0.2, r) * (1.0 - smoothstep(0.62, 0.92, r));
+          col = mix(col, uGrey, smoothstep(0.55, 1.0, fibre) * band * mix(0.3, 0.8, soft));
+          // тёмный ободок и тонкая светлая кромка
+          col = mix(col, uBlack, smoothstep(0.8, 0.96, r));
+          col = mix(col, uGrey, (1.0 - smoothstep(0.0, 0.012 + aa, abs(r - 0.975))) * 0.55);
+          // зрачок: красный, с чёрной сердцевиной и бликом; на входе в финал остаётся чистый красный
+          col = mix(col, uRed, 1.0 - smoothstep(uPupil - aa, uPupil + aa, r));
+          float core = uPupil * 0.52 * (1.0 - uDive);
+          col = mix(col, uBlack, 1.0 - smoothstep(core - aa, core + aa, r));
+          float glint = length(vP - vec2(-0.17, 0.17));
+          col = mix(col, uGrey, (1.0 - smoothstep(0.055 - aa, 0.055 + aa, glint)) * (1.0 - uDive));
+          // веки
+          float x = uCenter.x + vP.x * uRadius;
+          float z = uCenter.y - vP.y * uRadius;
+          float limit = uLid.y * (1.0 - (x * x) / (uLid.x * uLid.x)) - 0.3;
+          float alpha = (1.0 - smoothstep(1.0 - aa * 2.0, 1.0, r)) * smoothstep(0.0, 0.3, limit - abs(z));
+          gl_FragColor = vec4(col, alpha);
+        }`,
+    }),
+  )
+  eye.rotation.x = -Math.PI / 2
+  eye.frustumCulled = false
+  eye.renderOrder = 3
+  group.add(eye)
+
   const now = new THREE.Vector3()
   /**
    * @param open 0 — здание собрано, 1 — блоки встали в глаз
    * @param lid 0 — глаз закрыт, 1 — открыт
    * @param look куда смотрит глаз: смещение радужки, примерно от -1 до 1
+   * @param dive 0…1 — камера ныряет в зрачок
    */
   const update = (open: number, lid: number, time: number, lookX: number, lookY: number, dive = 0) => {
     // радужка не выходит за край век
     const gx = lookX * 2.6 * lid
     const gz = lookY * 1.3 * lid
+    const flight = open * 1.6
     for (let i = 0; i < count; i++) {
       const b = data[i]
-      let t = clamp01(open * 1.6 - b.delay)
+      let t = clamp01(flight - b.delay)
+      // у самого места блок сжимается и уступает линии
+      const melt = 1 - smooth(range(t, 0.78, 1))
       t = t * t * (3 - 2 * t)
       const up = Math.sin(Math.PI * t)
       // спираль ведёт к месту в неподвижном открытом глазу; живое смещение подмешивается к концу пути
@@ -273,38 +404,61 @@ export function createCity(colors: { black: number; grey: number; red: number })
         Math.sin(angle) * radius + (now.z - b.bz) * t,
       )
       dummy.rotation.set(up * b.tumble, mix(ANGLE, 0, t) + up * 2.2, up * b.tumble * 0.6)
-      dummy.scale.setScalar(mix(SIZE, b.spot.kind === 'iris' ? 0.78 : 0.98 - b.spot.ring * 0.07, t))
+      dummy.scale.setScalar(Math.max(mix(SIZE, 0.7, t) * melt, 0.0001))
       dummy.updateMatrix()
       blocks.setMatrixAt(i, dummy.matrix)
-      const grey = b.spot.kind === 'iris' && iris[b.spot.ring].grey
-      // внешние контуры темнее внутренних: взгляд собирается к центру
-      if (grey) blocks.setColorAt(i, tint.copy(cRed).lerp(cGrey, t))
-      else if (b.spot.kind === 'lid') blocks.setColorAt(i, tint.copy(cRed).lerp(cDark, t * Math.min(0.8, b.spot.ring * 0.17)))
-      else blocks.setColorAt(i, cRed)
+      blocks.setColorAt(i, cRed)
     }
     dummy.rotation.set(0, 0, 0)
     blocks.instanceMatrix.needsUpdate = true
     if (blocks.instanceColor) blocks.instanceColor.needsUpdate = true
 
-    const grow = smooth(clamp01(lid * 1.4)) * smooth(clamp01(open * 1.6 - 0.56))
-    pupil.position.set(gx, PUPIL_Y, gz)
-    pupil.scale.setScalar(Math.max(grow, 0.0001))
-    core.position.set(gx, PUPIL_Y + 0.02, gz)
-    core.scale.setScalar(Math.max(grow * (1 - dive), 0.0001))
-    glint.position.set(gx - 0.95, PUPIL_Y + 0.04, gz - 0.95)
-    glint.scale.setScalar(Math.max(grow * (1 - dive), 0.0001))
-    for (let i = 0; i < RAYS; i++) {
-      const angle = (i / RAYS) * TAU + time * 0.12
-      const len = (i % 2 ? 2.5 : 1.7) * grow
-      const r = 2.15 + len / 2
-      dummy.position.set(gx + Math.cos(angle) * r, EYE_Y + 0.35, gz + Math.sin(angle) * r)
-      dummy.rotation.set(0, -angle, 0)
-      dummy.scale.set(Math.max(len, 0.0001), 0.08, 0.09)
-      dummy.updateMatrix()
-      rays.setMatrixAt(i, dummy.matrix)
+    // контуры век
+    for (let st = 0; st < strips; st++) {
+      const k = stripRing(st)
+      const side = st & 1 ? -1 : 1
+      const { a, b } = lidSize(k)
+      const opened = smooth(clamp01(lid * 1.35 - k * 0.08))
+      const pulse = 1 + 0.035 * Math.sin(time * 1.25 - k * 0.85)
+      const shown = smooth(range(flight, lidFrom[k] + 0.78, lidTo[k] + 1))
+      // верхнее веко чуть толще нижнего
+      const half = (0.4 - k * 0.05) * shown * (side > 0 ? 1.15 : 0.85)
+      for (let i = 0; i <= M; i++) {
+        const s = -1 + (2 * i) / M
+        const cx = s * a * pulse
+        const cz = -side * b * opened * pulse * (1 - s * s)
+        const cy = EYE_Y - k * 0.55 + Math.sin(time * 1.6 - k * 0.9 + s * 1.5) * 0.45 * opened
+        const tx = a
+        const tz = 2 * side * b * opened * s
+        const len = Math.hypot(tx, tz)
+        const w = half * Math.pow(Math.max(0, 1 - s * s), 0.7)
+        const nx = (-tz / len) * w
+        const nz = (tx / len) * w
+        const v = (st * per + i * 2) * 3
+        ribPos[v] = cx - nx
+        ribPos[v + 1] = cy
+        ribPos[v + 2] = cz - nz
+        ribPos[v + 3] = cx + nx
+        ribPos[v + 4] = cy
+        ribPos[v + 5] = cz + nz
+      }
     }
-    dummy.rotation.set(0, 0, 0)
-    rays.instanceMatrix.needsUpdate = true
+    ribAttr.needsUpdate = true
+
+    // радужка и зрачок
+    const grown = smooth(range(flight, irisFrom + 0.78, irisTo + 1))
+    const radius = Math.max(IRIS_R * grown, 0.0001)
+    const pulse0 = 1 + 0.035 * Math.sin(time * 1.25)
+    eye.position.set(gx, PUPIL_Y, gz)
+    eye.scale.setScalar(radius)
+    eye.visible = grown > 0 && lid > 0.001
+    eyeUniforms.uTime.value = time
+    eyeUniforms.uCenter.value.set(gx, gz)
+    eyeUniforms.uRadius.value = radius
+    eyeUniforms.uLid.value.set(lidSize(0).a * pulse0, lidSize(0).b * smooth(clamp01(lid * 1.35)) * pulse0)
+    // зрачок медленно дышит, а на входе в финал раскрывается на всю радужку
+    eyeUniforms.uPupil.value = mix(0.355 * (1 + 0.05 * Math.sin(time * 0.9)), 1.05, smooth(dive))
+    eyeUniforms.uDive.value = dive
   }
   update(0, 0, 0, 0, 0)
 
