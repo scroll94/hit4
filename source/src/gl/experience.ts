@@ -192,7 +192,7 @@ export class Experience {
       // ── над городом: камера смотрит вниз, поднимается от красной крыши, а в конце ныряет в зрачок глаза
       const wide = range(cam.aspect, 0.5, 1.3)
       // на узком экране камера держится выше, чтобы глаз помещался по ширине
-      const settle = mix(1, mix(0.8, 0.5, wide), smooth(range(p.city, 0.72, 1)))
+      const settle = mix(1, mix(0.95, 0.62, wide), smooth(range(p.city, 0.72, 1)))
       const up = (1 - Math.pow(1 - p.city, 3)) * settle * (1 - Math.pow(p.toContact, 3))
       const h = mix(CITY_NEAR, CITY_FAR * mix(1.45, 1, wide), up)
       // сначала высота считается от крыши здания, потом от зрачка: глаз собирается выше крыши

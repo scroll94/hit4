@@ -175,14 +175,15 @@ export function createCity(colors: { black: number; grey: number; red: number })
     left -= perArc * 2
   }
 
-  // форма глаза: верхнее веко выгнуто сильнее нижнего, внешний уголок приподнят
-  const SKEW = 1.1
-  const arch = (side: number) => (side > 0 ? 1.2 : 0.78)
+  // форма глаза симметричная: верх и низ зеркальны
+  const SKEW = 0
+  const arch = (_side: number) => 1
   let tanX = 1
   let tanZ = 0
   /** точка контура века и касательная к нему (tanX, tanZ) */
-  const lidAt = (k: number, side: number, s: number, lid: number, time: number, out: THREE.Vector3) => {
-    const { a, b } = lidSize(k)
+  const lidAt = (k: number, side: number, s: number, lid: number, time: number, out: THREE.Vector3, inset = 1) => {
+    const a = lidSize(k).a * inset
+    const b = lidSize(k).b * inset
     const open = smooth(clamp01(lid * 1.35 - k * 0.08))
     const pulse = 1 + 0.02 * Math.sin(time * 1.25 - k * 0.85)
     const bb = b * arch(side) * open
@@ -260,25 +261,12 @@ export function createCity(colors: { black: number; grey: number; red: number })
 
   // линии глаза: веки, складка над верхним веком и ресницы — ленты с мягким краем
   const M = 64
-  type Strip =
-    | { lash: false; k: number; side: number; half: number; color: THREE.Color }
-    | { lash: true; s: number; side: number; len: number; lean: number; half: number; order: number; color: THREE.Color }
+  type Strip = { k: number; side: number; half: number; inset: number; color: THREE.Color }
   const stripList: Strip[] = []
-  if (ringCount > 1) stripList.push({ lash: false, k: 1, side: 1, half: 0.085, color: cRed.clone().lerp(cDark, 0.55) })
-  stripList.push({ lash: false, k: 0, side: -1, half: 0.15, color: cRed.clone().lerp(cDark, 0.2) })
-  stripList.push({ lash: false, k: 0, side: 1, half: 0.42, color: cRed.clone() })
-  const UPPER = 24
-  for (let j = 0; j < UPPER; j++) {
-    const s = -0.8 + (1.76 * j) / (UPPER - 1)
-    const out = (s + 1) / 2
-    // к внешнему уголку ресницы длиннее и сильнее отклоняются наружу
-    stripList.push({ lash: true, s, side: 1, len: (1.5 + 2.7 * Math.pow(out, 1.3)) * (0.85 + rnd() * 0.3), lean: 0.05 + 0.75 * out, half: 0.075, order: j / UPPER, color: cGrey })
-  }
-  const LOWER = 10
-  for (let j = 0; j < LOWER; j++) {
-    const s = -0.15 + (1.07 * j) / (LOWER - 1)
-    stripList.push({ lash: true, s, side: -1, len: (0.55 + 0.75 * ((s + 1) / 2)) * (0.85 + rnd() * 0.3), lean: 0.2 + 0.4 * s, half: 0.045, order: j / LOWER, color: cGrey })
-  }
+  // внешние контуры рисуются первыми: они тоньше и темнее внутренних
+  for (let k = ringCount - 1; k >= 0; k--)
+    for (const side of [1, -1]) stripList.push({ k, side, half: 0.34 * Math.pow(0.72, k), inset: 1, color: cRed.clone().lerp(cDark, Math.min(0.85, k * 0.24)) })
+  for (const side of [1, -1]) stripList.push({ k: 0, side, half: 0.035, inset: 0.9, color: cGrey })
   const strips = stripList.length
   const per = (M + 1) * 2
   const ribPos = new Float32Array(strips * per * 3)
@@ -289,8 +277,7 @@ export function createCity(colors: { black: number; grey: number; red: number })
     for (let i = 0; i <= M; i++)
       for (let e = 0; e < 2; e++) {
         const v = st * per + i * 2 + e
-        // у ресниц яркость ровная, у век гаснет к уголкам
-        ribUv.set([sp.lash ? 0.5 : i / M, e], v * 2)
+        ribUv.set([i / M, e], v * 2)
         ribTint.set([sp.color.r, sp.color.g, sp.color.b], v * 3)
       }
     for (let i = 0; i < M; i++) {
@@ -336,7 +323,7 @@ export function createCity(colors: { black: number; grey: number; red: number })
   group.add(lids)
 
   // радужка, зрачок и блик — один гладкий круг; веки обрезают его сверху и снизу
-  const IRIS_R = 5.5
+  const IRIS_R = 4.6
   const eyeUniforms = {
     uTime: { value: 0 },
     uPupil: { value: 0.36 },
@@ -377,9 +364,11 @@ export function createCity(colors: { black: number; grey: number; red: number })
           float fibre = sin(ang * 46.0 + sin(ang * 9.0 + uTime * 0.25) * 2.2 + r * 6.0 - uTime * 0.4);
           float soft = sin(ang * 17.0 - uTime * 0.18 + r * 3.0) * 0.5 + 0.5;
           float band = smoothstep(uPupil + 0.02, uPupil + 0.2, r) * (1.0 - smoothstep(0.62, 0.92, r));
-          col = mix(col, uGrey, smoothstep(0.55, 1.0, fibre) * band * mix(0.3, 0.8, soft));
+          col = mix(col, uGrey, smoothstep(0.6, 1.0, fibre) * band * mix(0.2, 0.62, soft));
           float dark = sin(ang * 92.0 + r * 5.0 + sin(ang * 5.0) * 3.0);
           col = mix(col, uBlack, smoothstep(0.5, 1.0, dark) * smoothstep(uPupil, uPupil + 0.12, r) * 0.45);
+          // светлое кольцо вокруг зрачка
+          col = mix(col, uGrey, (1.0 - smoothstep(0.004, 0.012 + aa, abs(r - uPupil - 0.045))) * 0.7 * (1.0 - uDive));
           // тёмный ободок и тонкая светлая кромка
           col = mix(col, uBlack, smoothstep(0.8, 0.96, r));
           col = mix(col, uGrey, (1.0 - smoothstep(0.0, 0.012 + aa, abs(r - 0.975))) * 0.55);
@@ -444,61 +433,23 @@ export function createCity(colors: { black: number; grey: number; red: number })
 
     // линии глаза
     const open0 = smooth(clamp01(lid * 1.35))
-    const lashFrom = lidFrom[Math.min(2, ringCount - 1)]
-    const lashShown = smooth(range(flight, lashFrom + 0.78, lidTo[ringCount - 1] + 1))
     stripList.forEach((sp, st) => {
       const at = st * per * 3
-      if (!sp.lash) {
-        const shown = smooth(range(flight, lidFrom[sp.k] + 0.78, lidTo[sp.k] + 1))
-        for (let i = 0; i <= M; i++) {
-          const s = -1 + (2 * i) / M
-          lidAt(sp.k, sp.side, s, lid, time, now)
-          const len = Math.hypot(tanX, tanZ)
-          const w = sp.half * shown * Math.pow(Math.max(0, 1 - s * s), 0.7)
-          const nx = (-tanZ / len) * w
-          const nz = (tanX / len) * w
-          const v = at + i * 6
-          ribPos[v] = now.x - nx
-          ribPos[v + 1] = now.y
-          ribPos[v + 2] = now.z - nz
-          ribPos[v + 3] = now.x + nx
-          ribPos[v + 4] = now.y
-          ribPos[v + 5] = now.z + nz
-        }
-        return
-      }
-      // ресница: изогнутый штрих от века наружу, сужается к кончику
-      lidAt(0, sp.side, sp.s, lid, time, now)
-      const tl = Math.hypot(tanX, tanZ)
-      const ox = (sp.side * tanZ) / tl
-      const oz = (-sp.side * tanX) / tl
-      const grow = smooth(clamp01(lashShown * 1.6 - sp.order * 0.6))
-      const len = sp.len * grow * (0.6 + 0.4 * open0)
-      const sway = Math.sin(time * 0.9 + sp.s * 3) * 0.04
-      const x0 = now.x
-      const z0 = now.z
-      const x1 = x0 + ox * len * 0.55
-      const z1 = z0 + oz * len * 0.55
-      const x2 = x0 + (ox * 0.75 + sp.lean + sway) * len
-      const z2 = z0 + oz * 0.75 * len
+      const shown = smooth(range(flight, lidFrom[sp.k] + 0.78, lidTo[sp.k] + 1))
       for (let i = 0; i <= M; i++) {
-        const u = i / M
-        const q = 1 - u
-        const cx = q * q * x0 + 2 * q * u * x1 + u * u * x2
-        const cz = q * q * z0 + 2 * q * u * z1 + u * u * z2
-        const dx = 2 * q * (x1 - x0) + 2 * u * (x2 - x1)
-        const dz = 2 * q * (z1 - z0) + 2 * u * (z2 - z1)
-        const dl = Math.max(Math.hypot(dx, dz), 1e-5)
-        const w = sp.half * Math.pow(q, 0.8) * Math.min(1, grow * 3)
-        const nx = (-dz / dl) * w
-        const nz = (dx / dl) * w
+        const s = -1 + (2 * i) / M
+        lidAt(sp.k, sp.side, s, lid, time, now, sp.inset)
+        const len = Math.hypot(tanX, tanZ)
+        const w = sp.half * shown * Math.pow(Math.max(0, 1 - s * s), 0.7)
+        const nx = (-tanZ / len) * w
+        const nz = (tanX / len) * w
         const v = at + i * 6
-        ribPos[v] = cx - nx
-        ribPos[v + 1] = EYE_Y + 0.12
-        ribPos[v + 2] = cz - nz
-        ribPos[v + 3] = cx + nx
-        ribPos[v + 4] = EYE_Y + 0.12
-        ribPos[v + 5] = cz + nz
+        ribPos[v] = now.x - nx
+        ribPos[v + 1] = now.y
+        ribPos[v + 2] = now.z - nz
+        ribPos[v + 3] = now.x + nx
+        ribPos[v + 4] = now.y
+        ribPos[v + 5] = now.z + nz
       }
     })
     ribAttr.needsUpdate = true
@@ -513,7 +464,7 @@ export function createCity(colors: { black: number; grey: number; red: number })
     eyeUniforms.uTime.value = time
     eyeUniforms.uCenter.value.set(gx, gz)
     eyeUniforms.uRadius.value = radius
-    eyeUniforms.uLid.value.set(lidSize(0).a * pulse0, lidSize(0).b * arch(1) * open0 * pulse0, lidSize(0).b * arch(-1) * open0 * pulse0)
+    eyeUniforms.uLid.value.set(lidSize(0).a * 0.9 * pulse0, lidSize(0).b * 0.9 * open0 * pulse0, lidSize(0).b * 0.9 * open0 * pulse0)
     eyeUniforms.uSkew.value = SKEW * open0 * pulse0
     // зрачок медленно дышит, а на входе в финал раскрывается на всю радужку
     eyeUniforms.uPupil.value = mix(0.355 * (1 + 0.05 * Math.sin(time * 0.9)), 1.05, smooth(dive))
