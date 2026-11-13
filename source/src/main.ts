@@ -207,7 +207,7 @@ async function boot() {
     heroPin.style.opacity = String(1 - range(progress.scatter, 0.12, 0.6))
 
     // цвет текста под фон сцены: красный кадр бывает на выходе из тоннеля, у самой крыши и в финале
-    const red = (progress.toCity > 0.9 && progress.city < 0.02) || progress.toContact > 0.975
+    const red = (progress.toCity > 0.9 && progress.city < 0.02) || progress.toContact > 0.985
     const next = red ? 'red' : progress.toWorks > 0.55 && progress.toAbout < 0.35 ? 'light' : 'dark'
     if (next !== theme) document.body.dataset.theme = theme = next
 

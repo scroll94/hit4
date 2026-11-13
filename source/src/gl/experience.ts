@@ -189,23 +189,27 @@ export class Experience {
 
     let z = CAM_Z
     if (inCity) {
-      // ── над городом: камера смотрит вниз, поднимается от красной крыши и медленно поворачивается,
-      // а в конце ныряет обратно в ту же крышу
-      // к моменту сборки камера снижается, чтобы окно на крыше было видно крупнее
-      const settle = mix(1, 0.6, smooth(range(p.city, 0.72, 1)))
+      // ── над городом: камера смотрит вниз, поднимается от красной крыши, а в конце ныряет в зрачок глаза
+      const wide = range(cam.aspect, 0.5, 1.3)
+      // на узком экране камера держится выше, чтобы глаз помещался по ширине
+      const settle = mix(1, mix(0.95, 0.62, wide), smooth(range(p.city, 0.72, 1)))
       const up = (1 - Math.pow(1 - p.city, 3)) * settle * (1 - Math.pow(p.toContact, 3))
-      const h = mix(CITY_NEAR, CITY_FAR, up)
+      const h = mix(CITY_NEAR, CITY_FAR * mix(1.45, 1, wide), up)
+      // сначала высота считается от крыши здания, потом от зрачка: глаз собирается выше крыши
+      const floor = mix(this.city.roofY, this.city.pupilY, smooth(range(p.city, 0.25, 0.6)))
+      const near = Math.min(1, up * 4)
       cam.position.set(
-        CITY_AT.x - 10 * this.fit * up + this.look.x * 1.4,
-        CITY_AT.y + this.city.roofY + h,
-        CITY_AT.z + 4 * up + this.look.y * 1.4,
+        CITY_AT.x - 6 * this.fit * up + this.look.x * 1.4 * near,
+        CITY_AT.y + floor + h,
+        CITY_AT.z + 1.5 * up + this.look.y * 1.4 * near,
       )
-      // камера медленно поворачивается и к концу пике встаёт ровно по окну на крыше
-      cam.rotation.set(-Math.PI / 2, 0, this.city.angle - 1.25 + p.city * 0.95 + smooth(p.toContact) * 0.3)
-      // здание разбирается на домики, пока камера набирает высоту, и собирается обратно перед пике
-      this.city.setOpen(smooth(range(p.city, 0.07, 0.5)) * (1 - smooth(range(p.city, 0.64, 0.98))))
-      // картинка в окне появляется, пока плитки разлетелись, и растворяется в красном у самой крыши
-      this.city.setPicture(smooth(range(p.city, 0.5, 0.62)) * (1 - smooth(range(p.toContact, 0.74, 0.94))))
+      // пока здание раскручивается, камера поворачивается; к открытию глаза встаёт ровно
+      cam.rotation.set(-Math.PI / 2, 0, -0.9 * (1 - smooth(range(p.city, 0, 0.62))) + Math.sin(time * 0.2) * 0.02)
+      // здание раскручивается в глаз, глаз открывается, иногда моргает и следит за курсором
+      const opened = smooth(range(p.city, 0.5, 0.68))
+      const blink = opened >= 1 && p.toContact < 0.2 ? Math.exp(-Math.pow(((time % 5.2) - 0.3) / 0.09, 2)) : 0
+      const gaze = 1 - smooth(p.toContact)
+      this.city.update(smooth(range(p.city, 0.07, 0.5)), opened * (1 - 0.9 * blink), time, this.look.x * gaze, this.look.y * gaze)
     } else {
       // ── первый экран, работы и тоннель
       let y = mix(0, worksTop, smooth(p.toWorks))
@@ -262,7 +266,7 @@ export class Experience {
     for (const plane of this.planes) plane.rotation.x += (tilt - plane.rotation.x) * (1 - Math.exp(-dt * 6))
 
     // ── финал: буква складывается из кубиков и расступается перед курсором
-    this.drift.mesh.visible = p.toContact > 0.9
+    this.drift.mesh.visible = inFinale
     if (this.finale.visible) {
       const tan = Math.tan((FOV * Math.PI) / 360)
       // линза сдвигает картинку к центру; переводим курсор в те же координаты, что и сцена

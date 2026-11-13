@@ -1,60 +1,14 @@
 import * as THREE from 'three'
-import { contact, person } from '../content'
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
 const mix = (a: number, b: number, t: number) => a + (b - a) * t
-
-/**
- * Картинка для окна на крыше: уменьшенный финал сайта —
- * красное поле, заголовок слева и буква из точек справа.
- */
-function drawFinale(colors: { black: number; red: number }) {
-  const W = 1536
-  const H = 1024
-  const canvas = document.createElement('canvas')
-  canvas.width = W
-  canvas.height = H
-  const c = canvas.getContext('2d')!
-  const hex = (n: number) => '#' + n.toString(16).padStart(6, '0')
-  c.fillStyle = hex(colors.red)
-  c.fillRect(0, 0, W, H)
-
-  c.fillStyle = hex(colors.black)
-  c.textBaseline = 'alphabetic'
-  c.font = '800 96px Unbounded, "Arial Black", Arial, sans-serif'
-  contact.title.forEach((line, i) => c.fillText(line.toUpperCase(), 70, 420 + i * 100))
-  c.font = '800 30px Unbounded, Arial, sans-serif'
-  c.fillText(person.name.toUpperCase(), 70, 96)
-
-  // буква из точек: чем ниже и правее, тем крупнее точки
-  const mask = document.createElement('canvas')
-  mask.width = W
-  mask.height = H
-  const m = mask.getContext('2d')!
-  m.font = '800 620px Unbounded, "Arial Black", Arial, sans-serif'
-  m.textBaseline = 'alphabetic'
-  m.fillText(person.monogram, 880, 760)
-  const data = m.getImageData(0, 0, W, H).data
-  const step = 15
-  for (let y = step / 2; y < H; y += step)
-    for (let x = 860; x < W; x += step) {
-      if (data[(Math.floor(y) * W + Math.floor(x)) * 4 + 3] < 128) continue
-      const r = 2.2 + 4.6 * clamp01((x - 880) / 560) * 0.5 + 4.6 * clamp01((y - 300) / 460) * 0.5
-      c.beginPath()
-      c.arc(x, y, r, 0, Math.PI * 2)
-      c.fill()
-    }
-
-  const texture = new THREE.CanvasTexture(canvas)
-  texture.colorSpace = THREE.SRGBColorSpace
-  texture.anisotropy = 8
-  return texture
-}
+const smooth = (v: number) => v * v * (3 - 2 * v)
+const TAU = Math.PI * 2
 
 /**
  * Город для вида сверху: кварталы из коробок с окнами и красное здание в центре.
- * Здание сложено из блоков: они разлетаются по крышам вокруг красными домиками
- * и собираются обратно. Его крыша — окно в финал: картинка из плиток, как пазл.
+ * Здание сложено из блоков. Они раскручиваются по спирали и собираются над городом в глаз:
+ * контуры век расходятся волнами, радужка вращается и следит за курсором, зрачок — вход в финал.
  */
 export function createCity(colors: { black: number; grey: number; red: number }) {
   const group = new THREE.Group()
@@ -90,11 +44,8 @@ export function createCity(colors: { black: number; grey: number; red: number })
     { min: 9, max: 12, side: wall(2, 7), items: [] as number[][] },
   ]
   const tiers: number[][] = []
-  const units: number[][] = []
   const lights: number[][] = []
   const redLights: number[][] = []
-  /** свободные плоские крыши: на них садятся красные домики */
-  const landings: { x: number; y: number; z: number; w: number }[] = []
 
   const PITCH = 5.2
   const N = 10
@@ -103,12 +54,8 @@ export function createCity(colors: { black: number; grey: number; red: number })
     const cls = classes[r < 0.4 ? 0 : r < 0.8 ? 1 : 2]
     const h = cls.min + rnd() * (cls.max - cls.min)
     cls.items.push([x, z, w, h, d])
-    if (w > 3 && rnd() < 0.3) {
-      // надстройка: второй ярус поменьше
-      tiers.push([x + (rnd() - 0.5) * w * 0.25, h, z + (rnd() - 0.5) * d * 0.25, w * 0.55, 0.6 + rnd() * 1.6, d * 0.55])
-    } else {
-      landings.push({ x, y: h, z, w: Math.min(w, d) })
-    }
+    // надстройка: второй ярус поменьше
+    if (w > 3 && rnd() < 0.3) tiers.push([x + (rnd() - 0.5) * w * 0.25, h, z + (rnd() - 0.5) * d * 0.25, w * 0.55, 0.6 + rnd() * 1.6, d * 0.55])
   }
   for (let gx = -N; gx <= N; gx++) {
     for (let gz = -N; gz <= N; gz++) {
@@ -117,7 +64,7 @@ export function createCity(colors: { black: number; grey: number; red: number })
       // огоньки на перекрёстках и вдоль улиц
       if (rnd() < 0.6) (rnd() < 0.1 ? redLights : lights).push([x + PITCH / 2, 0.12, z + (rnd() - 0.5) * PITCH, 0.16, 0.16, 0.16])
       if (rnd() < 0.6) (rnd() < 0.1 ? redLights : lights).push([x + (rnd() - 0.5) * PITCH, 0.12, z + PITCH / 2, 0.16, 0.16, 0.16])
-      // вокруг красного здания — пустая площадь, чтобы окно было видно целиком
+      // вокруг красного здания — пустая площадь
       if (Math.abs(gx) <= 1 && Math.abs(gz) <= 1) continue
       const r = rnd()
       if (r < 0.08) continue
@@ -154,7 +101,6 @@ export function createCity(colors: { black: number; grey: number; red: number })
     dummy.scale.set(sx, sy, sz)
   }
   instanced(new THREE.MeshLambertMaterial({ color: 0x4a505b }), tiers, small)
-  instanced(new THREE.MeshLambertMaterial({ color: 0x8b929b }), units, small)
   instanced(new THREE.MeshBasicMaterial({ color: colors.grey }), lights, small)
   instanced(new THREE.MeshBasicMaterial({ color: colors.red }), redLights, small)
 
@@ -162,143 +108,176 @@ export function createCity(colors: { black: number; grey: number; red: number })
   ground.rotation.x = -Math.PI / 2
   group.add(ground)
 
-  // ── красное здание из блоков; стоит под углом к кварталам, как окно на его скрине
+  // ── красное здание из блоков
   const SIZE = 1.1
   const COLS = 6
   const ROWS = 4
   const LAYERS = 14
   const ANGLE = 0.42
   const roofY = LAYERS * SIZE
-  const top = new THREE.MeshBasicMaterial({ color: colors.red, fog: false })
-  const sideA = new THREE.MeshBasicMaterial({ color: 0xb51a2e, fog: false })
-  const sideB = new THREE.MeshBasicMaterial({ color: 0x8f1524, fog: false })
+  /** высота, на которой собирается глаз: выше любой крыши */
+  const EYE_Y = roofY + 6
+  const PUPIL_Y = EYE_Y + 1.8
   const count = COLS * ROWS * LAYERS
-  const blocks = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), [sideA, sideA, top, sideB, sideB, sideB], count)
+
+  // грани белые разной яркости, а цвет блока задаётся отдельно: красный или серый
+  const shade = (v: number) => new THREE.MeshBasicMaterial({ color: new THREE.Color(v, v, v), fog: false })
+  const blocks = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), [shade(0.52), shade(0.52), shade(1), shade(0.3), shade(0.34), shade(0.34)], count)
   blocks.frustumCulled = false
   group.add(blocks)
+  const cRed = new THREE.Color(colors.red)
+  const cGrey = new THREE.Color(colors.grey)
+  const tint = new THREE.Color()
 
-  // плитки с картинкой лежат на верхнем слое блоков и летают вместе с ними
-  const tileGeometry = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
-  const tileIndex = new Float32Array(COLS * ROWS * 2)
-  const picture = { value: 0 }
-  const tileMaterial = new THREE.ShaderMaterial({
-    uniforms: {
-      uMap: { value: drawFinale(colors) },
-      uRed: { value: new THREE.Color(colors.red) },
-      uPicture: picture,
-      uGrid: { value: new THREE.Vector2(COLS, ROWS) },
-    },
-    vertexShader: /* glsl */ `
-      attribute vec2 aTile;
-      uniform vec2 uGrid;
-      varying vec2 vUv;
-      void main() {
-        vUv = (aTile + uv) / uGrid;
-        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: /* glsl */ `
-      uniform sampler2D uMap;
-      uniform vec3 uRed;
-      uniform float uPicture;
-      varying vec2 vUv;
-      void main() {
-        gl_FragColor = vec4(mix(uRed, texture2D(uMap, vUv).rgb, uPicture), 1.0);
-      }
-    `,
+  // зрачок: гладкий красный диск, в него ныряет камера
+  const pupil = new THREE.Mesh(new THREE.CircleGeometry(1.95, 56), new THREE.MeshBasicMaterial({ color: colors.red, fog: false }))
+  pupil.rotation.x = -Math.PI / 2
+  group.add(pupil)
+
+  // ── из чего состоит глаз
+  // контуры век: параболические дуги, каждая следующая больше и ниже — расходятся, как круги по воде
+  const lidSize = (k: number) => ({ a: 10 + k * 2.7, b: 4.5 + k * 2.3 })
+  type Spot =
+    | { kind: 'lid'; ring: number; s: number; side: number }
+    | { kind: 'iris'; ring: number; phase: number }
+  const spotsList: Spot[] = []
+  const iris = [
+    { r: 2.75, n: 14, grey: true, y: 1.1, turn: 0.28 },
+    { r: 3.85, n: 20, grey: false, y: 0.55, turn: -0.2 },
+    { r: 4.95, n: 26, grey: true, y: 0, turn: 0.13 },
+  ]
+  iris.forEach((ring, j) => {
+    for (let i = 0; i < ring.n; i++) spotsList.push({ kind: 'iris', ring: j, phase: (i / ring.n) * TAU })
   })
-  const tiles = new THREE.InstancedMesh(tileGeometry, tileMaterial, COLS * ROWS)
-  tiles.frustumCulled = false
-  group.add(tiles)
+  let left = count - spotsList.length
+  for (let k = 0; left > 0; k++) {
+    const { a, b } = lidSize(k)
+    // длина одной дуги и точки на ней через равные отрезки
+    const steps = 400
+    const xs: number[] = []
+    const acc: number[] = [0]
+    for (let i = 0; i <= steps; i++) xs.push(-1 + (2 * i) / steps)
+    for (let i = 1; i <= steps; i++) {
+      const y0 = b * (1 - xs[i - 1] ** 2)
+      const y1 = b * (1 - xs[i] ** 2)
+      acc.push(acc[i - 1] + Math.hypot((xs[i] - xs[i - 1]) * a, y1 - y0))
+    }
+    const perArc = Math.min(Math.floor(left / 2), Math.round(acc[steps] / 1.32))
+    if (perArc < 6) {
+      // остаток блоков уходит в последнее кольцо, чтобы ни один не потерялся
+      for (; left > 0; left--) spotsList.push({ kind: 'lid', ring: Math.max(0, k - 1), s: -1 + 2 * rnd(), side: rnd() < 0.5 ? 1 : -1 })
+      break
+    }
+    for (const side of [1, -1])
+      for (let i = 0; i < perArc; i++) {
+        const want = ((i + (side > 0 ? 0.5 : 0)) / perArc) * acc[steps]
+        let j = 1
+        while (j < steps && acc[j] < want) j++
+        spotsList.push({ kind: 'lid', ring: k, s: xs[j], side })
+      }
+    left -= perArc * 2
+  }
 
-  // у каждого блока свой дом на крыше поближе или подальше; на одной крыше помещается два
-  const spots = landings
-    .map((l) => ({ ...l, r: Math.hypot(l.x, l.z) }))
-    .filter((l) => l.r > 9 && l.r < 52)
-    .sort(() => rnd() - 0.5)
-  // Блок летит по спирали вокруг оси здания: угол растёт, радиус расходится от стены к крыше-цели.
-  type Block = { hr: number; ha: number; hy: number; tr: number; sweep: number; ty: number; size: number; arc: number; yaw: number; tumble: number; delay: number }
+  /** куда блок встаёт в глазу; lid 0…1 — насколько глаз открыт */
+  const place = (spot: Spot, lid: number, time: number, lookX: number, lookZ: number, out: THREE.Vector3) => {
+    if (spot.kind === 'iris') {
+      const ring = iris[spot.ring]
+      const grow = smooth(clamp01(lid * 1.4 - spot.ring * 0.12))
+      const angle = spot.phase + time * ring.turn
+      const r = ring.r * (0.12 + 0.88 * grow) * (1 + 0.03 * Math.sin(time * 1.7 - spot.ring))
+      out.set(lookX + Math.cos(angle) * r, EYE_Y + ring.y * grow, lookZ + Math.sin(angle) * r)
+    } else {
+      const { a, b } = lidSize(spot.ring)
+      // внутренние контуры открываются раньше внешних, потом все слегка «дышат»
+      const open = smooth(clamp01(lid * 1.35 - spot.ring * 0.08))
+      const pulse = 1 + 0.035 * Math.sin(time * 1.25 - spot.ring * 0.85)
+      out.set(spot.s * a * pulse, EYE_Y - spot.ring * 0.55, -spot.side * b * open * pulse * (1 - spot.s * spot.s))
+    }
+  }
+
+  // ── блоки: дом в здании, место в глазу и спираль между ними
+  type Block = { hr: number; ha: number; hy: number; tr: number; sweep: number; bx: number; by: number; bz: number; arc: number; tumble: number; delay: number; spot: Spot }
   const data: Block[] = []
-  const TAU = Math.PI * 2
   const cos = Math.cos(ANGLE)
   const sin = Math.sin(ANGLE)
+  const base = new THREE.Vector3()
+  // верхние этажи улетают первыми и становятся радужкой и внутренними контурами
+  const order = spotsList.map((spot, i) => ({ spot, i }))
   let n = 0
-  for (let ly = 0; ly < LAYERS; ly++)
+  for (let ly = LAYERS - 1; ly >= 0; ly--)
     for (let ix = 0; ix < COLS; ix++)
       for (let iz = 0; iz < ROWS; iz++, n++) {
-        const spot = spots[n % spots.length]
-        const corner = Math.floor(n / spots.length) % 2 ? 0.22 : -0.22
-        const size = Math.min(spot.w * 0.42, 0.7 + rnd() * 0.6)
         const lx = (ix - (COLS - 1) / 2) * SIZE
         const lz = (iz - (ROWS - 1) / 2) * SIZE
         const hx = lx * cos + lz * sin
         const hz = -lx * sin + lz * cos
-        const tx = spot.x + corner * spot.w
-        const tz = spot.z + corner * spot.w
         const ha = Math.atan2(hz, hx)
         const around = (((ha % TAU) + TAU) % TAU) / TAU
+        const spot = order[n].spot
+        place(spot, 1, 0, 0, 0, base)
         data.push({
           hr: Math.hypot(hx, hz),
           ha,
           hy: (ly + 0.5) * SIZE,
-          tr: Math.hypot(tx, tz),
-          // до своей крыши блок делает ещё один-два полных оборота, все в одну сторону
-          sweep: ((((Math.atan2(tz, tx) - ha) % TAU) + TAU) % TAU) + TAU * (1 + Math.floor(rnd() * 2)),
-          ty: spot.y + size / 2,
-          size,
-          arc: 4 + rnd() * 6 + spot.r * 0.1,
-          yaw: Math.round(rnd() * 3) * (Math.PI / 2) + TAU,
+          tr: Math.hypot(base.x, base.z),
+          // до своего места блок делает ещё один-два оборота вокруг оси здания, все в одну сторону
+          sweep: ((((Math.atan2(base.z, base.x) - ha) % TAU) + TAU) % TAU) + TAU * (1 + Math.floor(rnd() * 2)),
+          bx: base.x,
+          by: base.y,
+          bz: base.z,
+          arc: 2.5 + rnd() * 4,
           tumble: (rnd() - 0.5) * 1.4,
           // здание раскручивается, как лента: сверху вниз и по кругу, блок за блоком
           delay: ((LAYERS - 1 - ly + around) / LAYERS) * 0.56 + rnd() * 0.02,
+          spot,
         })
-        if (ly === LAYERS - 1) {
-          const t = ix * ROWS + iz
-          tileIndex[t * 2] = ix
-          tileIndex[t * 2 + 1] = ROWS - 1 - iz
-        }
       }
-  tileGeometry.setAttribute('aTile', new THREE.InstancedBufferAttribute(tileIndex, 2))
 
-  const lift = new THREE.Matrix4().makeTranslation(0, 0.503, 0)
-  const tileMatrix = new THREE.Matrix4()
-  const firstTop = (LAYERS - 1) * COLS * ROWS
-
-  /** 0 — здание собрано, 1 — блоки разлетелись по крышам. */
-  const setOpen = (open: number) => {
+  const now = new THREE.Vector3()
+  /**
+   * @param open 0 — здание собрано, 1 — блоки встали в глаз
+   * @param lid 0 — глаз закрыт, 1 — открыт
+   * @param look куда смотрит глаз: смещение радужки, примерно от -1 до 1
+   */
+  const update = (open: number, lid: number, time: number, lookX: number, lookY: number) => {
+    // радужка не выходит за край век
+    const gx = lookX * 2.6 * lid
+    const gz = lookY * 1.3 * lid
     for (let i = 0; i < count; i++) {
       const b = data[i]
       let t = clamp01(open * 1.6 - b.delay)
       t = t * t * (3 - 2 * t)
       const up = Math.sin(Math.PI * t)
-      // сначала виток почти вплотную к зданию, потом спираль расходится
+      // спираль ведёт к месту в неподвижном открытом глазу; живое смещение подмешивается к концу пути
       const angle = b.ha + b.sweep * t
-      const radius = mix(b.hr, b.tr, Math.pow(t, 1.7)) + up * 1.6
-      dummy.position.set(Math.cos(angle) * radius, mix(b.hy, b.ty, t) + up * b.arc, Math.sin(angle) * radius)
-      dummy.rotation.set(up * b.tumble, mix(ANGLE, b.yaw, t), up * b.tumble * 0.6)
-      dummy.scale.setScalar(mix(SIZE, b.size, t))
+      const radius = mix(b.hr, b.tr, Math.pow(t, 1.5)) + up * 1.8
+      place(b.spot, lid, time, gx, gz, now)
+      dummy.position.set(
+        Math.cos(angle) * radius + (now.x - b.bx) * t,
+        mix(b.hy, b.by, t) + up * b.arc + (now.y - b.by) * t,
+        Math.sin(angle) * radius + (now.z - b.bz) * t,
+      )
+      dummy.rotation.set(up * b.tumble, mix(ANGLE, 0, t) + up * 2.2, up * b.tumble * 0.6)
+      dummy.scale.setScalar(mix(SIZE, b.spot.kind === 'iris' ? 0.78 : 0.92, t))
       dummy.updateMatrix()
       blocks.setMatrixAt(i, dummy.matrix)
-      if (i >= firstTop) tiles.setMatrixAt(i - firstTop, tileMatrix.multiplyMatrices(dummy.matrix, lift))
+      const grey = b.spot.kind === 'iris' && iris[b.spot.ring].grey
+      blocks.setColorAt(i, grey ? tint.copy(cRed).lerp(cGrey, t) : cRed)
     }
     dummy.rotation.set(0, 0, 0)
     blocks.instanceMatrix.needsUpdate = true
-    tiles.instanceMatrix.needsUpdate = true
+    if (blocks.instanceColor) blocks.instanceColor.needsUpdate = true
+
+    const grow = smooth(clamp01(lid * 1.4)) * smooth(clamp01(open * 1.6 - 0.56))
+    pupil.position.set(gx, PUPIL_Y, gz)
+    pupil.scale.setScalar(Math.max(grow, 0.0001))
   }
-  setOpen(0)
+  update(0, 0, 0, 0, 0)
 
   group.add(new THREE.HemisphereLight(0xffffff, 0x0b0c10, 1.0))
   const sun = new THREE.DirectionalLight(0xffffff, 2.4)
   sun.position.set(30, 50, 18)
   group.add(sun)
 
-  return {
-    group,
-    roofY,
-    /** угол, под которым окно стоит к кварталам: камера выравнивается по нему перед входом */
-    angle: ANGLE,
-    setOpen,
-    /** 0 — крыша просто красная, 1 — на ней видна картинка финала */
-    setPicture: (v: number) => void (picture.value = v),
-  }
+  return { group, roofY, pupilY: PUPIL_Y, update }
 }

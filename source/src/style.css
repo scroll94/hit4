@@ -759,3 +759,12 @@ body[data-menu='open'] .top__cta:hover {
     animation: none;
   }
 }
+
+/* текст над городом стоит на тёмной подложке: за ним теперь красные контуры глаза */
+#city-panel {
+  padding: 16px 18px 18px;
+  background: rgb(17 18 23 / 0.8);
+}
+#city-panel p {
+  text-shadow: none;
+}
