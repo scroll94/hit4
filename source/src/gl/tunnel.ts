@@ -16,6 +16,27 @@ export function createTunnel(length: number, colors: { black: number; grey: numb
   const light = new THREE.MeshBasicMaterial({ color: colors.grey })
   const red = new THREE.MeshBasicMaterial({ color: colors.red })
   const box = new THREE.BoxGeometry(1, 1, 1)
+  // стройка: каждая деталь поднимается от пола, ближние раньше дальних
+  const build = { value: 1 }
+  for (const material of [dark, mid, light, red]) {
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.uBuild = build
+      shader.vertexShader = 'uniform float uBuild;\n' + shader.vertexShader.replace(
+        '#include <project_vertex>',
+        `vec4 mvPosition = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+          mvPosition = instanceMatrix * mvPosition;
+        #endif
+        float bDist = clamp((6.0 - mvPosition.z) / 60.0, 0.0, 1.0);
+        float bGrow = clamp(uBuild * 2.0 - bDist, 0.0, 1.0);
+        bGrow = bGrow * bGrow * (3.0 - 2.0 * bGrow);
+        mvPosition.y = -1.5 + (mvPosition.y + 1.5) * bGrow;
+        mvPosition.xz *= mix(0.92, 1.0, bGrow);
+        mvPosition = modelViewMatrix * mvPosition;
+        gl_Position = projectionMatrix * mvPosition;`,
+      )
+    }
+  }
   const dummy = new THREE.Object3D()
 
   const instanced = (material: THREE.Material, items: [number, number, number, number, number, number][]) => {
@@ -81,5 +102,12 @@ export function createTunnel(length: number, colors: { black: number; grey: numb
   const lamp = new THREE.PointLight(0xffffff, 40, 26, 1.6)
   group.add(lamp)
 
-  return { group, lamp }
+  /** 0 — пустой пол, 1 — тоннель построен */
+  const setBuild = (v: number) => {
+    build.value = v
+    exit.scale.y = Math.max(v * v, 0.0001)
+    exit.position.y = -1.5 + 2.5 * v * v
+  }
+
+  return { group, lamp, setBuild }
 }

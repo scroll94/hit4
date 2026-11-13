@@ -175,6 +175,22 @@ export function createCity(colors: { black: number; grey: number; red: number })
     left -= perArc * 2
   }
 
+  // форма глаза: верхнее веко выгнуто сильнее нижнего, внешний уголок приподнят
+  const SKEW = 1.1
+  const arch = (side: number) => (side > 0 ? 1.2 : 0.78)
+  let tanX = 1
+  let tanZ = 0
+  /** точка контура века и касательная к нему (tanX, tanZ) */
+  const lidAt = (k: number, side: number, s: number, lid: number, time: number, out: THREE.Vector3) => {
+    const { a, b } = lidSize(k)
+    const open = smooth(clamp01(lid * 1.35 - k * 0.08))
+    const pulse = 1 + 0.02 * Math.sin(time * 1.25 - k * 0.85)
+    const bb = b * arch(side) * open
+    out.set(s * a * pulse, EYE_Y - k * 0.55 + Math.sin(time * 1.6 - k * 0.9 + s * 1.5) * 0.3 * open, (-side * bb * (1 - s * s) - SKEW * s * open) * pulse)
+    tanX = a
+    tanZ = 2 * side * bb * s - SKEW * open
+  }
+
   /** куда блок встаёт в глазу; lid 0…1 — насколько глаз открыт */
   const place = (spot: Spot, lid: number, time: number, lookX: number, lookZ: number, out: THREE.Vector3) => {
     if (spot.kind === 'iris') {
@@ -183,15 +199,7 @@ export function createCity(colors: { black: number; grey: number; red: number })
       const angle = spot.phase + time * ring.turn
       const r = ring.r * (0.12 + 0.88 * grow) * (1 + 0.03 * Math.sin(time * 1.7 - spot.ring))
       out.set(lookX + Math.cos(angle) * r, EYE_Y + ring.y * grow, lookZ + Math.sin(angle) * r)
-    } else {
-      const { a, b } = lidSize(spot.ring)
-      // внутренние контуры открываются раньше внешних, потом все слегка «дышат»
-      const open = smooth(clamp01(lid * 1.35 - spot.ring * 0.08))
-      const pulse = 1 + 0.035 * Math.sin(time * 1.25 - spot.ring * 0.85)
-      // по контурам бежит волна по высоте: глаз выглядит объёмным и живым
-      const wave = Math.sin(time * 1.6 - spot.ring * 0.9 + spot.s * 1.5) * 0.45 * open
-      out.set(spot.s * a * pulse, EYE_Y - spot.ring * 0.55 + wave, -spot.side * b * open * pulse * (1 - spot.s * spot.s))
-    }
+    } else lidAt(spot.ring, spot.side, spot.s, lid, time, out)
   }
 
   // ── блоки: дом в здании, место в глазу и спираль между ними
@@ -250,30 +258,46 @@ export function createCity(colors: { black: number; grey: number; red: number })
     }
   }
 
-  // контуры век: ленты с мягким краем, сужаются к уголкам глаза
-  const M = 96
-  const strips = ringCount * 2
+  // линии глаза: веки, складка над верхним веком и ресницы — ленты с мягким краем
+  const M = 64
+  type Strip =
+    | { lash: false; k: number; side: number; half: number; color: THREE.Color }
+    | { lash: true; s: number; side: number; len: number; lean: number; half: number; order: number; color: THREE.Color }
+  const stripList: Strip[] = []
+  if (ringCount > 1) stripList.push({ lash: false, k: 1, side: 1, half: 0.085, color: cRed.clone().lerp(cDark, 0.55) })
+  stripList.push({ lash: false, k: 0, side: -1, half: 0.15, color: cRed.clone().lerp(cDark, 0.2) })
+  stripList.push({ lash: false, k: 0, side: 1, half: 0.42, color: cRed.clone() })
+  const UPPER = 24
+  for (let j = 0; j < UPPER; j++) {
+    const s = -0.8 + (1.76 * j) / (UPPER - 1)
+    const out = (s + 1) / 2
+    // к внешнему уголку ресницы длиннее и сильнее отклоняются наружу
+    stripList.push({ lash: true, s, side: 1, len: (1.5 + 2.7 * Math.pow(out, 1.3)) * (0.85 + rnd() * 0.3), lean: 0.05 + 0.75 * out, half: 0.075, order: j / UPPER, color: cGrey })
+  }
+  const LOWER = 10
+  for (let j = 0; j < LOWER; j++) {
+    const s = -0.15 + (1.07 * j) / (LOWER - 1)
+    stripList.push({ lash: true, s, side: -1, len: (0.55 + 0.75 * ((s + 1) / 2)) * (0.85 + rnd() * 0.3), lean: 0.2 + 0.4 * s, half: 0.045, order: j / LOWER, color: cGrey })
+  }
+  const strips = stripList.length
   const per = (M + 1) * 2
   const ribPos = new Float32Array(strips * per * 3)
   const ribUv = new Float32Array(strips * per * 2)
   const ribTint = new Float32Array(strips * per * 3)
   const ribIndex: number[] = []
-  // внешние контуры рисуются первыми и темнее внутренних
-  const stripRing = (st: number) => ringCount - 1 - (st >> 1)
-  for (let st = 0; st < strips; st++) {
-    const k = stripRing(st)
-    tint.copy(cRed).lerp(cDark, Math.min(0.8, k * 0.19))
+  stripList.forEach((sp, st) => {
     for (let i = 0; i <= M; i++)
       for (let e = 0; e < 2; e++) {
         const v = st * per + i * 2 + e
-        ribUv.set([i / M, e], v * 2)
-        ribTint.set([tint.r, tint.g, tint.b], v * 3)
+        // у ресниц яркость ровная, у век гаснет к уголкам
+        ribUv.set([sp.lash ? 0.5 : i / M, e], v * 2)
+        ribTint.set([sp.color.r, sp.color.g, sp.color.b], v * 3)
       }
     for (let i = 0; i < M; i++) {
       const v = st * per + i * 2
       ribIndex.push(v, v + 1, v + 2, v + 1, v + 3, v + 2)
     }
-  }
+  })
   const ribGeo = new THREE.BufferGeometry()
   const ribAttr = new THREE.BufferAttribute(ribPos, 3)
   ribAttr.setUsage(THREE.DynamicDrawUsage)
@@ -319,7 +343,8 @@ export function createCity(colors: { black: number; grey: number; red: number })
     uDive: { value: 0 },
     uCenter: { value: new THREE.Vector2() },
     uRadius: { value: 1 },
-    uLid: { value: new THREE.Vector2(10, 0) },
+    uLid: { value: new THREE.Vector3(10, 0, 0) },
+    uSkew: { value: 0 },
     uRed: { value: new THREE.Color(colors.red) },
     uGrey: { value: new THREE.Color(colors.grey) },
     uBlack: { value: new THREE.Color(colors.black) },
@@ -338,8 +363,9 @@ export function createCity(colors: { black: number; grey: number; red: number })
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }`,
       fragmentShader: /* glsl */ `
-        uniform float uTime, uPupil, uDive, uRadius;
-        uniform vec2 uCenter, uLid;
+        uniform float uTime, uPupil, uDive, uRadius, uSkew;
+        uniform vec2 uCenter;
+        uniform vec3 uLid;
         uniform vec3 uRed, uGrey, uBlack, uDark;
         varying vec2 vP;
         void main() {
@@ -352,6 +378,8 @@ export function createCity(colors: { black: number; grey: number; red: number })
           float soft = sin(ang * 17.0 - uTime * 0.18 + r * 3.0) * 0.5 + 0.5;
           float band = smoothstep(uPupil + 0.02, uPupil + 0.2, r) * (1.0 - smoothstep(0.62, 0.92, r));
           col = mix(col, uGrey, smoothstep(0.55, 1.0, fibre) * band * mix(0.3, 0.8, soft));
+          float dark = sin(ang * 92.0 + r * 5.0 + sin(ang * 5.0) * 3.0);
+          col = mix(col, uBlack, smoothstep(0.5, 1.0, dark) * smoothstep(uPupil, uPupil + 0.12, r) * 0.45);
           // тёмный ободок и тонкая светлая кромка
           col = mix(col, uBlack, smoothstep(0.8, 0.96, r));
           col = mix(col, uGrey, (1.0 - smoothstep(0.0, 0.012 + aa, abs(r - 0.975))) * 0.55);
@@ -364,8 +392,9 @@ export function createCity(colors: { black: number; grey: number; red: number })
           // веки
           float x = uCenter.x + vP.x * uRadius;
           float z = uCenter.y - vP.y * uRadius;
-          float limit = uLid.y * (1.0 - (x * x) / (uLid.x * uLid.x)) - 0.3;
-          float alpha = (1.0 - smoothstep(1.0 - aa * 2.0, 1.0, r)) * smoothstep(0.0, 0.3, limit - abs(z));
+          float zr = z + uSkew * x / uLid.x;
+          float limit = (zr < 0.0 ? uLid.y : uLid.z) * (1.0 - (x * x) / (uLid.x * uLid.x)) - 0.3;
+          float alpha = (1.0 - smoothstep(1.0 - aa * 2.0, 1.0, r)) * smoothstep(0.0, 0.3, limit - abs(zr));
           gl_FragColor = vec4(col, alpha);
         }`,
     }),
@@ -413,49 +442,79 @@ export function createCity(colors: { black: number; grey: number; red: number })
     blocks.instanceMatrix.needsUpdate = true
     if (blocks.instanceColor) blocks.instanceColor.needsUpdate = true
 
-    // контуры век
-    for (let st = 0; st < strips; st++) {
-      const k = stripRing(st)
-      const side = st & 1 ? -1 : 1
-      const { a, b } = lidSize(k)
-      const opened = smooth(clamp01(lid * 1.35 - k * 0.08))
-      const pulse = 1 + 0.035 * Math.sin(time * 1.25 - k * 0.85)
-      const shown = smooth(range(flight, lidFrom[k] + 0.78, lidTo[k] + 1))
-      // верхнее веко чуть толще нижнего
-      const half = (0.4 - k * 0.05) * shown * (side > 0 ? 1.15 : 0.85)
+    // линии глаза
+    const open0 = smooth(clamp01(lid * 1.35))
+    const lashFrom = lidFrom[Math.min(2, ringCount - 1)]
+    const lashShown = smooth(range(flight, lashFrom + 0.78, lidTo[ringCount - 1] + 1))
+    stripList.forEach((sp, st) => {
+      const at = st * per * 3
+      if (!sp.lash) {
+        const shown = smooth(range(flight, lidFrom[sp.k] + 0.78, lidTo[sp.k] + 1))
+        for (let i = 0; i <= M; i++) {
+          const s = -1 + (2 * i) / M
+          lidAt(sp.k, sp.side, s, lid, time, now)
+          const len = Math.hypot(tanX, tanZ)
+          const w = sp.half * shown * Math.pow(Math.max(0, 1 - s * s), 0.7)
+          const nx = (-tanZ / len) * w
+          const nz = (tanX / len) * w
+          const v = at + i * 6
+          ribPos[v] = now.x - nx
+          ribPos[v + 1] = now.y
+          ribPos[v + 2] = now.z - nz
+          ribPos[v + 3] = now.x + nx
+          ribPos[v + 4] = now.y
+          ribPos[v + 5] = now.z + nz
+        }
+        return
+      }
+      // ресница: изогнутый штрих от века наружу, сужается к кончику
+      lidAt(0, sp.side, sp.s, lid, time, now)
+      const tl = Math.hypot(tanX, tanZ)
+      const ox = (sp.side * tanZ) / tl
+      const oz = (-sp.side * tanX) / tl
+      const grow = smooth(clamp01(lashShown * 1.6 - sp.order * 0.6))
+      const len = sp.len * grow * (0.6 + 0.4 * open0)
+      const sway = Math.sin(time * 0.9 + sp.s * 3) * 0.04
+      const x0 = now.x
+      const z0 = now.z
+      const x1 = x0 + ox * len * 0.55
+      const z1 = z0 + oz * len * 0.55
+      const x2 = x0 + (ox * 0.75 + sp.lean + sway) * len
+      const z2 = z0 + oz * 0.75 * len
       for (let i = 0; i <= M; i++) {
-        const s = -1 + (2 * i) / M
-        const cx = s * a * pulse
-        const cz = -side * b * opened * pulse * (1 - s * s)
-        const cy = EYE_Y - k * 0.55 + Math.sin(time * 1.6 - k * 0.9 + s * 1.5) * 0.45 * opened
-        const tx = a
-        const tz = 2 * side * b * opened * s
-        const len = Math.hypot(tx, tz)
-        const w = half * Math.pow(Math.max(0, 1 - s * s), 0.7)
-        const nx = (-tz / len) * w
-        const nz = (tx / len) * w
-        const v = (st * per + i * 2) * 3
+        const u = i / M
+        const q = 1 - u
+        const cx = q * q * x0 + 2 * q * u * x1 + u * u * x2
+        const cz = q * q * z0 + 2 * q * u * z1 + u * u * z2
+        const dx = 2 * q * (x1 - x0) + 2 * u * (x2 - x1)
+        const dz = 2 * q * (z1 - z0) + 2 * u * (z2 - z1)
+        const dl = Math.max(Math.hypot(dx, dz), 1e-5)
+        const w = sp.half * Math.pow(q, 0.8) * Math.min(1, grow * 3)
+        const nx = (-dz / dl) * w
+        const nz = (dx / dl) * w
+        const v = at + i * 6
         ribPos[v] = cx - nx
-        ribPos[v + 1] = cy
+        ribPos[v + 1] = EYE_Y + 0.12
         ribPos[v + 2] = cz - nz
         ribPos[v + 3] = cx + nx
-        ribPos[v + 4] = cy
+        ribPos[v + 4] = EYE_Y + 0.12
         ribPos[v + 5] = cz + nz
       }
-    }
+    })
     ribAttr.needsUpdate = true
 
     // радужка и зрачок
     const grown = smooth(range(flight, irisFrom + 0.78, irisTo + 1))
     const radius = Math.max(IRIS_R * grown, 0.0001)
-    const pulse0 = 1 + 0.035 * Math.sin(time * 1.25)
+    const pulse0 = 1 + 0.02 * Math.sin(time * 1.25)
     eye.position.set(gx, PUPIL_Y, gz)
     eye.scale.setScalar(radius)
     eye.visible = grown > 0 && lid > 0.001
     eyeUniforms.uTime.value = time
     eyeUniforms.uCenter.value.set(gx, gz)
     eyeUniforms.uRadius.value = radius
-    eyeUniforms.uLid.value.set(lidSize(0).a * pulse0, lidSize(0).b * smooth(clamp01(lid * 1.35)) * pulse0)
+    eyeUniforms.uLid.value.set(lidSize(0).a * pulse0, lidSize(0).b * arch(1) * open0 * pulse0, lidSize(0).b * arch(-1) * open0 * pulse0)
+    eyeUniforms.uSkew.value = SKEW * open0 * pulse0
     // зрачок медленно дышит, а на входе в финал раскрывается на всю радужку
     eyeUniforms.uPupil.value = mix(0.355 * (1 + 0.05 * Math.sin(time * 0.9)), 1.05, smooth(dive))
     eyeUniforms.uDive.value = dive
